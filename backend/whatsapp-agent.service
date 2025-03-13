@@ -1,0 +1,15 @@
+[Unit]
+Description=Servicio de Agente WhatsApp
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/whatsapp-agent/backend/src
+Environment=PYTHONPATH=/home/ubuntu/whatsapp-agent/backend/src
+ExecStart=/usr/bin/python3 /home/ubuntu/whatsapp-agent/backend/src/main_dev.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target 
