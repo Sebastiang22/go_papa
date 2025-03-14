@@ -67,13 +67,15 @@ class MySQLOrderManager:
                 state VARCHAR(50) DEFAULT 'pendiente',
                 address VARCHAR(255) NOT NULL,
                 user_name VARCHAR(255),
+                user_id VARCHAR(255),
                 restaurant_id VARCHAR(255) DEFAULT 'Macchiato',
                 created_at DATETIME NOT NULL,
                 updated_at DATETIME NOT NULL,
                 INDEX (enum_order_table),
                 INDEX (address),
                 INDEX (state),
-                INDEX (created_at)
+                INDEX (created_at),
+                INDEX (user_id)
             )
             """)
             self.connection.commit()
@@ -109,7 +111,7 @@ class MySQLOrderManager:
             try:
                 # Preparar los campos y valores para la inserción
                 fields = ["id", "enum_order_table", "product_id", "product_name", 
-                          "quantity", "details", "state", "address", "user_name", 
+                          "quantity", "details", "state", "address", "user_name", "user_id",
                           "created_at", "updated_at"]
                 
                 # Agregar campos opcionales si existen
@@ -409,3 +411,60 @@ class MySQLOrderManager:
         except Exception as e:
             logging.exception("Error general al recuperar los pedidos del día: %s", e)
             return {}
+    
+    async def update_order_status_by_user_id(self, user_id: str, new_state: str) -> Optional[List[Dict[str, Any]]]:
+        """
+        Updates the status of all orders for a specific user.
+
+        Parameters:
+            user_id (str): The ID of the user whose orders will be updated.
+            new_state (str): The new state to set for the orders.
+
+        Returns:
+            Optional[List[Dict[str, Any]]]: A list of the updated orders, or None if an error occurs.
+        """
+        try:
+            if self.connection is None or not self.connection.is_connected():
+                self._connect()
+                if self.connection is None or not self.connection.is_connected():
+                    logging.error("Failed to connect to MySQL database")
+                    return None
+            
+            cursor = self.connection.cursor(dictionary=True)
+            try:
+                # Update all orders for the user
+                update_query = """
+                UPDATE orders 
+                SET state = %s, updated_at = %s 
+                WHERE user_id = %s
+                """
+                
+                now = datetime.now()
+                cursor.execute(update_query, (new_state, now, user_id))
+                self.connection.commit()
+                
+                # Fetch the updated orders
+                cursor.execute("SELECT * FROM orders WHERE user_id = %s", (user_id,))
+                updated_orders = cursor.fetchall()
+                
+                if updated_orders:
+                    # Convert datetime objects to ISO format strings
+                    for order in updated_orders:
+                        if isinstance(order.get("created_at"), datetime):
+                            order["created_at"] = order["created_at"].isoformat()
+                        if isinstance(order.get("updated_at"), datetime):
+                            order["updated_at"] = order["updated_at"].isoformat()
+                    
+                    logging.info("Updated %d orders for user: %s", len(updated_orders), user_id)
+                    return updated_orders
+                else:
+                    logging.warning("No orders found for user: %s", user_id)
+                    return None
+            except Error as err:
+                logging.exception("Error updating orders for user %s: %s", user_id, err)
+                return None
+            finally:
+                cursor.close()
+        except Exception as e:
+            logging.exception("General error updating orders: %s", e)
+            return None

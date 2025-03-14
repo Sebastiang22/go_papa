@@ -24,10 +24,12 @@ from langchain_openai import ChatOpenAI
 class RestaurantStateDict(TypedDict):
     thread_id: Optional[str]
     restaurant_name: Optional[str]
+    user_id: Optional[str]
 
 class RestaurantState(MessagesState):
     thread_id: Optional[str] = None
     restaurant_name: Optional[str] = None
+    user_id: Optional[str] = None
         # - consultar_menu:
 
         #     Utiliza esta herramienta para mostrar el menú actualizado del restaurante.
@@ -38,6 +40,8 @@ SYSTEM_PROMPT =     """
         Eres un asistente de IA especializado en atención a clientes en nuestro restaurante. Tu misión es guiar a los comensales en el proceso de seleccionar y confirmar cada producto o plato de su pedido.
         Responde de manera amigable usando emojis de vez en cuando.
         Debes indagar o preguntar los datos necesarios para realizar la orden.
+
+        {{user_info}}
 
         Herramientas disponibles:
 
@@ -54,23 +58,24 @@ SYSTEM_PROMPT =     """
                 address: dirección de entrega del pedido (debes preguntar al cliente)
                 user_name: nombre del cliente (debes preguntar al cliente)
             Si en la conversación notas que ya se realizo un pedido identico o con el mensaje exactamente igual deber preguntar al cliente si desea realizarlo nuevamente (ya que probablemente haya sido un accidente).
+            Si el cliente tiene una orden pendiente y desea agregar más productos, utiliza esta herramienta para añadir solo los nuevos productos manteniendo la misma dirección y nombre del cliente de la orden pendiente.
             
         - get_menu_tool:
 
             Esta herramienta se utiliza para obtener la disponibilidad del menú en tiempo real.
-            Importante: Cada vez que el cliente pregunte por el menú, debes llamar a esta herramienta sin embargo no debes mencionar la cantidad de platos disponibles en el inventario.
-            Ofrece unicamente los productos que tengan unidades disponibles pero nunca menciones la cantidad que hay, amenos que el usaurio mencione ser el 'administrador' o 'admin' solo en esos casos si puedes mencionar la cantidad del inventario.
-            
-        - get_order_status_tool:
-            Esta herramienta se utiliza para obtener el estado del pedido completo para la dirección del cliente. Únicamente recibe una dirección que puede estar en los ultimos mensajes de la conversacion o se puede preguntar al cliente y devuelve un diccionario con la informacion del pedido.
-            Usa esta herramienta cuando el cliente pregunte como va su pedido o cuando quiera ver el estado de su pedido o sencillamente quiera ver qué han pedido hasta el momento.
-        Instrucciones y Reglas de Interacción:
+            IMPORTANTE: Debes llamar a esta herramienta cada vez que el cliente pregunte por el menú o antes de confirmar un pedido.
+            Solo debes ofrecer y permitir ordenar los productos que tengan unidades disponibles en el inventario.
+            Nunca menciones la cantidad disponible en el inventario, a menos que el usuario mencione ser el 'administrador' o 'admin'.
+            Si un producto no está disponible en el inventario, no lo menciones ni lo ofrezcas al cliente.
 
-        Saludo y cortesía: Inicia cada conversación saludando de forma amistosa, amable y profesional.
+
+        Saludo y cortesía: Inicia cada conversación saludando de forma amigable, amable y profesional.
         Indagación: Pregunta al cliente si desea consultar el menú, obtener detalles sobre algún plato o confirmar un producto.
         
         Proceso de pedido:
-            Una vez que el cliente seleccione un producto o plato y preguntes confirmando su elección, llama a la herramienta confirmar_pedido utilizando el formato exacto especificado anteriormente.
+            Antes de confirmar cualquier pedido, SIEMPRE verifica la disponibilidad del producto usando get_menu_tool.
+            Una vez confirmada la disponibilidad y que el cliente seleccione un producto, pregunta confirmando su elección y llama a confirmar_pedido.
+            Si el cliente tiene una orden pendiente, infórmale sobre su estado actual y pregúntale si desea agregar más productos a esa orden.
             
         Claridad y veracidad: Proporciona respuestas claras y precisas. Si ocurre algún error o la herramienta no procesa correctamente la solicitud, informa al cliente de forma amable.
         Actúa de manera muy servicial preguntando si hay alguna otra orden o pedido que quiera realizar, preguntando por bebidas u otros platos que deseen ordenar.
@@ -92,8 +97,38 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
     """
     # Preparar la conversacion
     max_messages = 10 
+    # Obtener información del usuario si está disponible en el estado
+    user_info = ""
+    user_id = state["user_id"]
+        
+        # Importar el gestor de usuarios
+    from core.mysql_user_manager import MySQLUserManager
+    user_manager = MySQLUserManager()
+    
+    # Obtener información del usuario
+    user_data = await user_manager.get_user(user_id)
+    print(f"Información del Usuario: {user_data}")
+    if user_data:
+        # Get user orders
+        user_orders = await user_manager.get_user_orders(user_id)
+        orders_info = ""
+        if user_orders:
+            orders_info = "\nHistorial de Pedidos:\n" + "\n".join([
+                f"- Pedido {order['order_id']}: {', '.join(order['products'])} "
+                f"(Estado: {order['state']})"
+                for order in user_orders[:3]  # Show only last 3 orders
+            ])
+        
+        user_info = (
+            f"Información del Cliente:\n"
+            f"Nombre: {user_data.get('name', 'No disponible')}\n"
+            f"Dirección: {user_data.get('address', 'No disponible')}"
+            f"{orders_info}"
+        )
 
-    system_msg = SystemMessage(content=SYSTEM_PROMPT.replace("{{fecha-hora}}",datetime.now().isoformat()))
+    # Inyectar la información del usuario en el prompt del sistema
+    system_prompt_with_user = SYSTEM_PROMPT.replace("{{fecha-hora}}", datetime.now().isoformat()).replace("{{user_info}}", user_info)
+    system_msg = SystemMessage(content=system_prompt_with_user)
     new_messages = [system_msg] + state["messages"][-max_messages:]
 
     # 1) Preparamos el LLM que tenga "search_tool" enlazado
@@ -101,7 +136,10 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
                         model=settings.openai_model)
     # bind_tools => el LLM sabe formatear la tool call como 
     # {"tool_calls": [{"name": "search_tool", "args": "..."}]}
-    llm_with_tools = llm_raw.bind_tools([confirm_order_tool,get_menu_tool,get_order_status_tool])#
+    # In main_agent_node function
+    llm_with_tools = llm_raw.bind_tools(
+    tools=[confirm_order_tool, get_menu_tool]
+        )
 
     # 2) Bucle: Llamamos al LLM -> revisamos tool_calls -> ejecutamos -> loop
     # while True:
@@ -133,6 +171,7 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
 
                 arguments = tool_call["args"]
                 arguments["restaurant_id"] = state.get("restaurant_name") if state.get("restaurant_name") else "Macchiato"
+                arguments["user_id"] = state.get("user_id")
                 tool_call["args"] = arguments
                 tool_calls_verified.append(tool_call)
 
@@ -231,7 +270,6 @@ class RestaurantChatAgent:
         history_messages = await self.mysql_saver.get_conversation_history(
             user_id
         )
-        print(history_messages)
         # 2. Construir lista de mensajes completa
         new_human_message = HumanMessage(
             content=user_input,
@@ -245,6 +283,7 @@ class RestaurantChatAgent:
                 "messages": all_messages,
                 "thread_id": conversation_id,
                 "restaurant_name": restaurant_name,
+                "user_id": user_id,
             },
             config={"configurable": {"thread_id": conversation_id, "user_id": user_id}},
         )
@@ -268,15 +307,6 @@ class RestaurantChatAgent:
         return RestaurantState(messages=new_state["messages"],
                              thread_id=conversation_id,
                              restaurant_name=restaurant_name), str(doc_id)
-
-        # Solicitud APi Whatsapp
-        # requests
-        # - endpoint: https://api.whatsapp.com/send
-        # - method: POST
-        # - body: {message:""}
-        #
-
-        return new_state, doc_id
 
 
 

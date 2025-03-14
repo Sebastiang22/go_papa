@@ -48,7 +48,22 @@ class RequestHTTPUpdateState(BaseModel):
     order_id: str
     state: Literal["pendiente","en preparación","completado"] = "pendiente"
     partition_key: Optional[str] = None
-    
+
+# Nuevos modelos para la gestión de usuarios
+class RequestHTTPCreateUser(BaseModel):
+    user_id: str
+    name: str
+    address: str
+
+class RequestHTTPGetUser(BaseModel):
+    user_id: str
+
+class ResponseHTTPUser(BaseModel):
+    user_id: str
+    name: Optional[str] = None
+    address: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
     
     
 from fastapi import APIRouter, HTTPException

@@ -129,7 +129,7 @@ class MySQLSaver:
         finally:
             cursor.close()
     
-    async def get_conversation_history(self, user_id: str, max_messages: int = 20) -> List[BaseMessage]:
+    async def get_conversation_history(self, user_id: str, max_messages: int = 2) -> List[BaseMessage]:
         """Retrieve conversation history from MySQL database."""
         if self.connection is None or not self.connection.is_connected():
             self._connect()

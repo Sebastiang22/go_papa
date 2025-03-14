@@ -91,10 +91,30 @@ async def create_order(order: Dict[str, Any] = Body(...)):
         "details": "Sin azúcar",
         "state": "pendiente",
         "address": "Calle Principal 123",
-        "user_name": "Santiago"
+        "user_name": "Santiago",
+        "user_id": "user123"
     }
     """
     created_order = await order_manager.create_order(order)
     if created_order is None:
         raise HTTPException(status_code=500, detail="Error al crear el pedido.")
     return created_order
+
+
+@orders_router.put("/update_state_by_user", response_model=Dict[str, Any])
+async def update_order_state_by_user(user_id: str = Query(...), state: str = Query(...)):
+    """
+    Actualiza el estado de todos los pedidos de un usuario específico.
+    
+    Parámetros:
+      - user_id: ID del usuario cuyos pedidos se actualizarán.
+      - state: Nuevo estado (por ejemplo, "pendiente", "completado", etc.).
+    """
+    updated_orders = await order_manager.update_order_status_by_user_id(user_id, state)
+    if not updated_orders:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No se encontraron pedidos para el usuario {user_id} o no se pudieron actualizar."
+        )
+    return {"orders": updated_orders}
+

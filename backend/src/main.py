@@ -1,4 +1,5 @@
 # app/main.py
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -8,7 +9,15 @@ from api.inventory_router import inventory_router
 # from api import auth
 from fastapi.staticfiles import StaticFiles
 
-app = FastAPI(title="TARS Agents Graphs")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for FastAPI application startup and shutdown events."""
+    print("Aplicación iniciada")
+    # Aquí podrías inicializar otros servicios o conexiones
+    yield
+    # Cleanup code (if needed) would go here
+
+app = FastAPI(title="TARS Agents Graphs", lifespan=lifespan)
 
 # Define los orígenes permitidos según donde se encuentre tu frontend.
 # En desarrollo podrías usar:
@@ -38,14 +47,3 @@ app.include_router(orders_router, prefix="/orders", tags=["Orders"])
 # Montar archivos estáticos (si es necesario)
 # app.mount("/", StaticFiles(directory="./dist", html=True), name="static")
 # app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="static")
-
-# Evento de inicio
-@app.on_event("startup")
-async def startup_event():
-    """
-    Se llama una sola vez al iniciar la app.
-    Puedes inicializar variables globales aquí si fuera necesario
-    o delegar a un módulo de dependencias.
-    """
-    print("Aplicación iniciada")
-    # Aquí podrías inicializar otros servicios o conexiones
