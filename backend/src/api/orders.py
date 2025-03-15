@@ -118,3 +118,15 @@ async def update_order_state_by_user(user_id: str = Query(...), state: str = Que
         )
     return {"orders": updated_orders}
 
+
+@orders_router.get("/all", response_model=Dict[str, Any])
+async def get_all_orders():
+    """
+    Retorna todos los pedidos en la base de datos,
+    agrupando en el campo 'products' todos los productos que comparten el mismo 'enum_order_table'.
+    """
+    orders = await order_manager.get_all_orders()
+    if not orders:
+        raise HTTPException(status_code=404, detail="No se encontraron pedidos.")
+    return orders
+

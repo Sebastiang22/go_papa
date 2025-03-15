@@ -92,7 +92,7 @@ class ClienteWhatsApp:
                 conversation_id=f"conversation_{message_info['number']}",
                 conversation_name=f"Conversación con {message_info['number']}",
                 user_id=message_info['number'],
-                restaurant_name="papa"
+                restaurant_name="go_papa"
             )
 
             if not isinstance(state, dict):
@@ -106,7 +106,8 @@ class ClienteWhatsApp:
             if not ai_messages:
                 raise ValueError("No AI messages found in conversation")
 
-            response = ai_messages[-1].content
+            response = ai_messages[-1].content.replace("**", "*")
+            
             if isinstance(response, (list, dict)):
                 response = str(response)
             elif not isinstance(response, str):

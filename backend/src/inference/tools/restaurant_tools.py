@@ -59,14 +59,29 @@ async def confirm_order_tool(
     order_id = genereta_id()
     
     # Obtener el último pedido usando address
-    latest_order = await order_manager.get_latest_order(address)
-    
-    if latest_order is not None:
-        logging.info("Último pedido realizado: %s", latest_order)
-        enum_order_table = generate_order_id(latest_order, threshold_minutes=60) 
+    latest_order = await order_manager.get_latest_order()
+    print()  
+     # Verificar si el usuario tiene órdenes pendientes
+    pending_orders = await order_manager.get_pending_orders_by_user_id(user_id)
+    #verifica si hay ordenes 
+    if latest_order:
+        print(f"pendiente_orders: {pending_orders}")
+        # Si el usuario tiene órdenes pendientes, usar el enum_order_table de la última orden pendiente
+        if pending_orders and len(pending_orders) > 0:
+            # Usar el enum_order_table de la última orden pendiente
+            enum_order_table = int(pending_orders[0]['enum_order_table'])
+            logging.info("Usuario tiene órdenes pendientes. Usando enum_order_table: %s", enum_order_table)
+        else:
+            # Si no hay órdenes pendientes o la última orden está terminada
+            if latest_order['state'] == 'terminado':
+                logging.info("Último pedido realizado y terminado: %s", latest_order)
+                enum_order_table = int(latest_order['enum_order_table']) + 1
+            else:
+                logging.info("Último pedido realizado: %s", latest_order)
+                enum_order_table = int(latest_order['enum_order_table'])
     else:
         logging.info("No se encontró un pedido previo para la dirección: %s", address)
-        enum_order_table = 100000
+        enum_order_table = 1
 
     state = "pendiente"
     print(

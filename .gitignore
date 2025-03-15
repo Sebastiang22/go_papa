@@ -18,3 +18,4 @@ __pycache__/
 *.sqlite3
 .env
 # Ignorar archivos relacionados con Docker, que no son necesarios dentro del contenedor
+restagentfrontend

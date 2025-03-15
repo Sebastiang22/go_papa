@@ -189,12 +189,12 @@ class MySQLOrderManager:
             logging.exception("Error general al recuperar el pedido: %s", e)
             return None
     
-    async def get_latest_order(self, partition_key: str) -> Optional[Dict[str, Any]]:
+    async def get_latest_order(self) -> Optional[Dict[str, Any]]:
         """
-        Recupera el pedido más reciente para una dirección determinada.
+        Recupera el enum_order_table del último pedido registrado en la tabla.
 
-        :param partition_key: Dirección de entrega del pedido.
-        :return: El pedido más reciente o None si no existe o se produce algún error.
+        :param partition_key: Parámetro ignorado, mantenido por compatibilidad.
+        :return: El enum_order_table del último pedido o None si no existe o se produce algún error.
         """
         try:
             if self.connection is None or not self.connection.is_connected():
@@ -206,24 +206,23 @@ class MySQLOrderManager:
             cursor = self.connection.cursor(dictionary=True)
             try:
                 cursor.execute(
-                    "SELECT * FROM orders WHERE address = %s ORDER BY created_at DESC LIMIT 1", 
-                    (partition_key,)
+                    "SELECT enum_order_table FROM orders ORDER BY created_at DESC LIMIT 1"
                 )
                 order = cursor.fetchone()
                 
                 if order:
-                    logging.info("Último pedido recuperado para dirección: %s", partition_key)
+                    logging.info("Último enum_order_table recuperado")
                     return order
                 else:
-                    logging.warning("No se encontraron pedidos para la dirección: %s", partition_key)
+                    logging.warning("No se encontraron pedidos en la tabla")
                     return None
             except Error as err:
-                logging.exception("Error al recuperar el último pedido para mesa %s: %s", partition_key, err)
+                logging.exception("Error al recuperar el último enum_order_table: %s", err)
                 return None
             finally:
                 cursor.close()
         except Exception as e:
-            logging.exception("Error general al recuperar el último pedido: %s", e)
+            logging.exception("Error general al recuperar el último enum_order_table: %s", e)
             return None
     
     async def get_order_status_by_address(self, address: str) -> Optional[Dict[str, Any]]:
@@ -432,11 +431,11 @@ class MySQLOrderManager:
             
             cursor = self.connection.cursor(dictionary=True)
             try:
-                # Update all orders for the user
+                # Update only orders that are not in 'terminado' state
                 update_query = """
                 UPDATE orders 
                 SET state = %s, updated_at = %s 
-                WHERE user_id = %s
+                WHERE user_id = %s AND state != 'terminado'
                 """
                 
                 now = datetime.now()
@@ -468,3 +467,158 @@ class MySQLOrderManager:
         except Exception as e:
             logging.exception("General error updating orders: %s", e)
             return None
+    
+    
+    async def get_pending_orders_by_user_id(self, user_id: Optional[str]) -> List[Dict[str, Any]]:
+        """
+        Recupera los pedidos pendientes de un usuario específico.
+
+        :param user_id: ID del usuario.
+        :return: Lista de pedidos pendientes del usuario.
+        """
+        try:
+            if not user_id:
+                return []
+
+            if self.connection is None or not self.connection.is_connected():
+                self._connect()
+                if self.connection is None or not self.connection.is_connected():
+                    logging.error("Failed to connect to MySQL database")
+                    return []
+            
+            cursor = self.connection.cursor(dictionary=True)
+            try:
+                # Modificado para obtener todos los pedidos del usuario ordenados por fecha de creación
+                query = "SELECT * FROM orders WHERE user_id = %s ORDER BY created_at DESC"
+                cursor.execute(query, (user_id,))
+                orders = cursor.fetchall()
+                
+                if orders:
+                    for order in orders:
+                        if 'created_at' in order:
+                            order['created_at'] = order['created_at'].isoformat()
+                        if 'updated_at' in order:
+                            order['updated_at'] = order['updated_at'].isoformat()
+                
+                return orders
+            except Error as err:
+                logging.exception("Error al recuperar pedidos: %s", err)
+                return []
+            finally:
+                cursor.close()
+        except Exception as e:
+            logging.exception("Error general al recuperar pedidos: %s", e)
+            return []
+    
+    async def get_all_orders(self) -> Dict[str, Any]:
+        """
+        Retorna todos los pedidos en la base de datos,
+        agrupando en el campo 'products' todos los productos que comparten el mismo 'enum_order_table'.
+
+        Retorna:
+            Dict[str, Any]: Diccionario con los pedidos agrupados por enum_order_table.
+        """
+        try:
+            if self.connection is None or not self.connection.is_connected():
+                self._connect()
+                if self.connection is None or not self.connection.is_connected():
+                    logging.error("Failed to connect to MySQL database")
+                    return {}
+            
+            cursor = self.connection.cursor(dictionary=True)
+            try:
+                # Consultar todos los enum_order_table distintos
+                cursor.execute("SELECT DISTINCT enum_order_table FROM orders")
+                
+                distinct_orders = cursor.fetchall()
+                result = {}
+                
+                # Procesar cada grupo de pedidos
+                for order_group in distinct_orders:
+                    enum_order_table = order_group['enum_order_table']
+                    
+                    # Obtener todos los pedidos del grupo
+                    cursor.execute("""
+                        SELECT * FROM orders 
+                        WHERE enum_order_table = %s 
+                        ORDER BY created_at ASC
+                    """, (enum_order_table,))
+                    
+                    orders_in_group = cursor.fetchall()
+                    if not orders_in_group:
+                        continue
+                    
+                    # Construir el pedido consolidado
+                    first_order = orders_in_group[0]
+                    last_order = orders_in_group[-1]
+                    
+                    consolidated_order = {
+                        "id": enum_order_table,
+                        "address": first_order["address"],
+                        "customer_name": first_order.get("user_name", ""),
+                        "enum_order_table": enum_order_table,
+                        "products": [],
+                        "created_at": first_order["created_at"].isoformat() if isinstance(first_order["created_at"], datetime) else first_order["created_at"],
+                        "updated_at": last_order["updated_at"].isoformat() if isinstance(last_order["updated_at"], datetime) else last_order["updated_at"],
+                        "state": last_order.get("state", "pendiente")
+                    }
+                    
+                    # Agregar productos al pedido consolidado
+                    for order in orders_in_group:
+                        product = {
+                            "name": order.get("product_name", ""),
+                            "quantity": order.get("quantity", 0),
+                            "price": order.get("price", 0.0),
+                            "details": order.get("details", "")
+                        }
+                        consolidated_order["products"].append(product)
+                    
+                    result[enum_order_table] = consolidated_order
+                
+                return result
+                
+            except Error as err:
+                logging.exception("Error al recuperar todos los pedidos: %s", err)
+                return {}
+            finally:
+                cursor.close()
+        except Exception as e:
+            logging.exception("Error general al recuperar todos los pedidos: %s", e)
+            return {}
+
+    async def get_order_status_by_user_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retorna el estado de todos los pedidos de un usuario específico.
+
+        :param user_id: ID del usuario.
+        :return: El estado de todos los pedidos del usuario.
+        """
+        try:
+            if self.connection is None or not self.connection.is_connected():
+                self._connect()
+                if self.connection is None or not self.connection.is_connected():
+                    logging.error("Failed to connect to MySQL database")
+                    return None
+            
+            cursor = self.connection.cursor(dictionary=True)
+            try:
+                cursor.execute("SELECT * FROM orders WHERE user_id = %s", (user_id,))
+                orders = cursor.fetchall()
+                
+                if orders:
+                    for order in orders:
+                        if 'created_at' in order:
+                            order['created_at'] = order['created_at'].isoformat()
+                        if 'updated_at' in order:
+                            order['updated_at'] = order['updated_at'].isoformat()
+                
+                return orders
+            except Error as err:
+                logging.exception("Error al recuperar estado de pedidos: %s", err)
+                return []
+            finally:
+                cursor.close()
+        except Exception as e:
+            logging.exception("Error general al recuperar estado de pedidos: %s", e)
+            return []
+

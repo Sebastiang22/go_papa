@@ -288,16 +288,17 @@ class MySQLUserManager:
             
             cursor = self.connection.cursor(dictionary=True)
             try:
-                # Modified query to include created_at in the SELECT list
+                # Query to get the latest enum_order_table for the user
                 cursor.execute("""
-                    SELECT DISTINCT enum_order_table, MAX(created_at) as created_at
+                    SELECT enum_order_table, created_at
                     FROM orders 
-                    WHERE user_id = %s 
-                    GROUP BY enum_order_table
+                    WHERE user_id = %s
                     ORDER BY created_at DESC
+                    LIMIT 1
                 """, (user_id,))
                 
                 distinct_orders = cursor.fetchall()
+                print(distinct_orders)
                 summarized_orders = []
                 
                 for order_group in distinct_orders:
