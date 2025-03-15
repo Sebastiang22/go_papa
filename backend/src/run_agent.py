@@ -15,6 +15,9 @@ async def main():
                 await asyncio.sleep(5)
                 continue
 
+            numero = "+573127055573"
+            mensaje = "Agente Activado"
+            await cliente.enviar_mensaje(numero, mensaje)
 
             print("Esperando mensajes entrantes. Presiona Ctrl+C para salir...")
             while True:
