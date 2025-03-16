@@ -282,19 +282,6 @@ async function connectToWhatsApp() {
             };
             
             console.log('📩 Nuevo mensaje:', newMessage);
-            
-            // Verificar si se debe enviar el PDF automáticamente
-            const shouldSendPdfToUser = await shouldSendPdf(message.key.remoteJid.split('@')[0]);
-            if (shouldSendPdfToUser) {
-                console.log(`📎 Enviando PDF automático a ${message.key.remoteJid}`);
-                try {
-                    await sendPdfToUser(message.key.remoteJid);
-                    console.log(`✅ PDF enviado correctamente a ${message.key.remoteJid}`);
-                } catch (pdfError) {
-                    console.error('❌ Error al enviar PDF:', pdfError);
-                }
-            }
-            
             // Emitir evento de mensaje nuevo
             io.emit('new_message', newMessage);
         }

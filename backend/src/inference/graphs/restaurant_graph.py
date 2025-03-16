@@ -54,6 +54,7 @@ SYSTEM_PROMPT =     """
                 product_id : id del producto (que obtienes llamando a la tool get_menu_tool)
                 product_name: nombre del producto (que obtienes llamando a la tool get_menu_tool)
                 quantity: cantidad de productos a comprar (que debes preguntar al cliente)
+                price: precio del producto (que obtienes multiplicando la cantidad por el precio del producto que obtienes llamando a la tool get_menu_tool)
                 details: detalles adicionales del pedido (debes agregar si el cliente las menciona, de lo contrario puedes dejarlo en blanco)
                 address: dirección de entrega del pedido (debes preguntar al cliente)
                 user_name: nombre del cliente (debes preguntar al cliente)
@@ -191,6 +192,8 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
         
     new_messages.append(response_msg)
 
+    pdb.set_trace()
+
     # 3) Retornar el estado final
     return {
         "messages": new_messages,
@@ -239,7 +242,7 @@ class RestaurantChatAgent:
 
         # 2) Añadimos un solo nodo (main_agent_node)
         graph.add_node("AgentNode", main_agent_node)
-        graph.add_node("ToolsNode", ToolNode([confirm_order_tool, get_menu_tool,get_order_status_tool]))
+        graph.add_node("ToolsNode", ToolNode([confirm_order_tool, get_menu_tool]))#get_order_status_tool]
 
         # 3)
         graph.add_edge(START, "AgentNode")

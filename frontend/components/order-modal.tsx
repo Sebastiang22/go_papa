@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -13,7 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { Clock, User, CalendarDays, RefreshCw, AlertCircle } from "lucide-react"
+import { Clock, User, CalendarDays, RefreshCw, AlertCircle, Loader2 } from "lucide-react"
 import type { Order } from "./order-list"
 
 interface OrderModalProps {
@@ -44,12 +45,25 @@ const formatDate = (dateString: string) => {
 }
 
 export function OrderModal({ order, open, onOpenChange, onStatusUpdate }: OrderModalProps) {
+  const [isUpdating, setIsUpdating] = useState(false)
+  
   if (!order) return null
 
   const statusColors = {
     pendiente: "bg-yellow-500",
     "en preparación": "bg-blue-500",
     completado: "bg-green-500",
+  }
+  
+  const handleStatusChange = async (value: string) => {
+    setIsUpdating(true)
+    try {
+      await onStatusUpdate(order.id, value)
+      // No necesitamos hacer nada más aquí, ya que el componente Dashboard
+      // se encargará de recargar los datos y actualizar el estado
+    } finally {
+      setIsUpdating(false)
+    }
   }
 
   // Calcular el total del pedido
@@ -58,7 +72,7 @@ export function OrderModal({ order, open, onOpenChange, onStatusUpdate }: OrderM
   }, 0)
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(newOpen) => !isUpdating && onOpenChange(newOpen)}>
       <DialogContent className="w-[95%] max-w-[550px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -82,9 +96,9 @@ export function OrderModal({ order, open, onOpenChange, onStatusUpdate }: OrderM
 
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span>Mesa</span>
+                <span>Dirección</span>
               </div>
-              <div className="font-medium">Mesa {order.table_id}</div>
+              <div className="font-medium">{order.table_id}</div>
             </div>
           </div>
 
@@ -111,9 +125,16 @@ export function OrderModal({ order, open, onOpenChange, onStatusUpdate }: OrderM
               <Clock className="h-4 w-4" />
               <span>Estado del pedido</span>
             </div>
-            <Select defaultValue={order.state} onValueChange={(value: string) => onStatusUpdate(order.id, value)}>
+            <Select 
+              defaultValue={order.state} 
+              onValueChange={handleStatusChange}
+              disabled={isUpdating}
+            >
               <SelectTrigger>
-                <SelectValue placeholder="Seleccionar estado" />
+                <SelectValue placeholder="Seleccionar estado">
+                  {isUpdating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {order.state.charAt(0).toUpperCase() + order.state.slice(1)}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="pendiente">Pendiente</SelectItem>
@@ -164,17 +185,34 @@ export function OrderModal({ order, open, onOpenChange, onStatusUpdate }: OrderM
         </div>
 
         <DialogFooter className="flex flex-col sm:flex-row gap-2">
-          <Button variant="outline" className="w-full" onClick={() => onOpenChange(false)}>
+          <Button 
+            variant="outline" 
+            className="w-full" 
+            onClick={() => onOpenChange(false)}
+            disabled={isUpdating}
+          >
             Cerrar
           </Button>
           <Button
             className="w-full"
             onClick={() => {
+              setIsUpdating(true)
               onStatusUpdate(order.id, "completado")
-              onOpenChange(false)
+                .finally(() => {
+                  setIsUpdating(false)
+                  onOpenChange(false)
+                })
             }}
+            disabled={isUpdating || order.state === "completado"}
           >
-            Marcar como Completado
+            {isUpdating ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Actualizando...
+              </>
+            ) : (
+              "Marcar como Completado"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

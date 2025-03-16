@@ -42,6 +42,11 @@ export function OrderDetail({ order, onStatusUpdate }: OrderDetailProps) {
     completado: "bg-green-500",
   }
 
+  // Calcular el total del pedido
+  const orderTotal = order.products.reduce((total, product) => {
+    return total + product.price * product.quantity
+  }, 0)
+
   return (
     <Card className="sticky top-6">
       <CardHeader>
@@ -56,16 +61,32 @@ export function OrderDetail({ order, onStatusUpdate }: OrderDetailProps) {
       <CardContent>
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium">Mesa</label>
-            <p className="mt-1">Mesa {order.table_id}</p>
+            <label className="text-sm font-medium">Cliente</label>
+            <p className="mt-1">{order.customer_name}</p>
           </div>
           <div>
-            <label className="text-sm font-medium">Producto</label>
-            <p className="mt-1">{order.product_name}</p>
+            <label className="text-sm font-medium">Dirección</label>
+            <p className="mt-1">{order.table_id}</p>
           </div>
           <div>
-            <label className="text-sm font-medium">Cantidad</label>
-            <p className="mt-1">{order.cantidad}</p>
+            <label className="text-sm font-medium">Productos</label>
+            <div className="mt-2 space-y-2">
+              {order.products.map((product, index) => (
+                <div key={index} className="flex justify-between items-center text-sm">
+                  <div>
+                    <span className="font-medium">{product.name}</span>
+                    <span className="text-muted-foreground ml-2">
+                      ({formatCOP(product.price)} x {product.quantity})
+                    </span>
+                  </div>
+                  <span className="font-medium">{formatCOP(product.price * product.quantity)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium">Total</label>
+            <p className="mt-1 font-bold text-lg">{formatCOP(orderTotal)}</p>
           </div>
           <div>
             <label className="text-sm font-medium">Fecha de creación</label>

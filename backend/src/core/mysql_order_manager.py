@@ -9,7 +9,7 @@ from mysql.connector import Error
 
 from core.config import settings
 from core import utils
-
+import pdb
 
 class MySQLOrderManager:
     def __init__(self):
@@ -92,6 +92,7 @@ class MySQLOrderManager:
         :param order: Diccionario que representa el pedido.
         :return: El pedido creado o None en caso de error.
         """
+        pdb.set_trace()
         try:
             if self.connection is None or not self.connection.is_connected():
                 self._connect()
@@ -111,7 +112,7 @@ class MySQLOrderManager:
             try:
                 # Preparar los campos y valores para la inserción
                 fields = ["id", "enum_order_table", "product_id", "product_name", 
-                          "quantity", "details", "state", "address", "user_name", "user_id",
+                          "quantity", "details", "state", "address", "price", "user_name", "user_id",
                           "created_at", "updated_at"]
                 
                 # Agregar campos opcionales si existen
@@ -331,14 +332,34 @@ class MySQLOrderManager:
         agrupando en el campo 'products' todos los productos que comparten el mismo 'enum_order_table'.
 
         Retorna:
-            Dict[str, Any]: Diccionario con los pedidos agrupados por enum_order_table.
+            Dict[str, Any]: Diccionario con estadísticas y lista de pedidos.
+            {
+                "stats": {
+                    "total_orders": int,
+                    "pending_orders": int,
+                    "complete_orders": int,
+                    "total_sales": float
+                },
+                "orders": [
+                    {
+                        "id": str,
+                        "table_id": str,
+                        "customer_name": str,
+                        "products": [...],
+                        "created_at": str,
+                        "updated_at": str,
+                        "state": str
+                    },
+                    ...
+                ]
+            }
         """
         try:
             if self.connection is None or not self.connection.is_connected():
                 self._connect()
                 if self.connection is None or not self.connection.is_connected():
                     logging.error("Failed to connect to MySQL database")
-                    return {}
+                    return {"stats": {"total_orders": 0, "pending_orders": 0, "complete_orders": 0, "total_sales": 0}, "orders": []}
             
             cursor = self.connection.cursor(dictionary=True)
             try:
@@ -356,7 +377,13 @@ class MySQLOrderManager:
                 """, (today_start, today_end))
                 
                 distinct_orders = cursor.fetchall()
-                result = {}
+                orders_list = []
+                
+                # Estadísticas
+                total_orders = 0
+                pending_orders = 0
+                complete_orders = 0
+                total_sales = 0.0
                 
                 # Procesar cada grupo de pedidos
                 for order_group in distinct_orders:
@@ -379,9 +406,8 @@ class MySQLOrderManager:
                     
                     consolidated_order = {
                         "id": enum_order_table,
-                        "address": first_order["address"],
+                        "table_id": first_order.get("address", ""),
                         "customer_name": first_order.get("user_name", ""),
-                        "enum_order_table": enum_order_table,
                         "products": [],
                         "created_at": first_order["created_at"].isoformat() if isinstance(first_order["created_at"], datetime) else first_order["created_at"],
                         "updated_at": last_order["updated_at"].isoformat() if isinstance(last_order["updated_at"], datetime) else last_order["updated_at"],
@@ -389,27 +415,52 @@ class MySQLOrderManager:
                     }
                     
                     # Agregar productos al pedido consolidado
+                    order_total = 0.0
                     for order in orders_in_group:
+                        product_price = order.get("price", 0.0)
+                        product_quantity = order.get("quantity", 0)
+                        product_total = product_price * product_quantity
+                        
                         product = {
                             "name": order.get("product_name", ""),
-                            "quantity": order.get("quantity", 0),
-                            "price": order.get("price", 0.0),
-                            "details": order.get("details", "")
+                            "quantity": product_quantity,
+                            "price": product_price,
+                            "observations": order.get("details", "")
                         }
                         consolidated_order["products"].append(product)
+                        order_total += product_total
                     
-                    result[enum_order_table] = consolidated_order
+                    # Actualizar estadísticas
+                    total_orders += 1
+                    if consolidated_order["state"] == "pendiente":
+                        pending_orders += 1
+                    elif consolidated_order["state"] == "completado":
+                        complete_orders += 1
+                        total_sales += order_total
+                    
+                    orders_list.append(consolidated_order)
+                
+                # Construir el resultado final
+                result = {
+                    "stats": {
+                        "total_orders": total_orders,
+                        "pending_orders": pending_orders,
+                        "complete_orders": complete_orders,
+                        "total_sales": total_sales
+                    },
+                    "orders": orders_list
+                }
                 
                 return result
                 
             except Error as err:
                 logging.exception("Error al recuperar los pedidos del día: %s", err)
-                return {}
+                return {"stats": {"total_orders": 0, "pending_orders": 0, "complete_orders": 0, "total_sales": 0}, "orders": []}
             finally:
                 cursor.close()
         except Exception as e:
             logging.exception("Error general al recuperar los pedidos del día: %s", e)
-            return {}
+            return {"stats": {"total_orders": 0, "pending_orders": 0, "complete_orders": 0, "total_sales": 0}, "orders": []}
     
     async def update_order_status_by_user_id(self, user_id: str, new_state: str) -> Optional[List[Dict[str, Any]]]:
         """
@@ -626,4 +677,117 @@ class MySQLOrderManager:
         except Exception as e:
             logging.exception("Error general al recuperar estado de pedidos: %s", e)
             return []
+
+    async def update_order_status(self, enum_order_table: str, state: str, partition_key: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """
+        Actualiza el campo 'state' de todos los pedidos que comparten el mismo 'enum_order_table'
+        y retorna el pedido consolidado con la siguiente estructura:
+        {
+            "id": <enum_order_table>,
+            "table_id": <table_id>,
+            "customer_name": <user_name>,
+            "products": [
+                {
+                    "name": <product_name>,
+                    "quantity": <quantity>,
+                    "price": <price>,
+                    "observations": <details>
+                },
+                ...
+            ],
+            "created_at": <created_at>,
+            "updated_at": <updated_at>,
+            "state": <state>
+        }
+
+        Parámetros:
+            enum_order_table (str): Valor que identifica el grupo de pedidos a actualizar.
+            state (str): Nuevo estado (por ejemplo, "pendiente", "completado", etc.).
+            partition_key (Optional[str]): Parámetro ignorado, incluido para compatibilidad.
+
+        Retorna:
+            Optional[Dict[str, Any]]: El pedido consolidado actualizado o None en caso de error.
+        """
+        try:
+            if self.connection is None or not self.connection.is_connected():
+                self._connect()
+                if self.connection is None or not self.connection.is_connected():
+                    logging.error("Failed to connect to MySQL database")
+                    return None
+            
+            cursor = self.connection.cursor(dictionary=True)
+            try:
+                # Verificar si existen pedidos con ese enum_order_table
+                cursor.execute(
+                    "SELECT COUNT(*) as count FROM orders WHERE enum_order_table = %s",
+                    (enum_order_table,)
+                )
+                count = cursor.fetchone()["count"]
+                if count == 0:
+                    logging.warning("No se encontraron pedidos con enum_order_table: %s", enum_order_table)
+                    return None
+                
+                # Actualizar el estado de todos los pedidos con el mismo enum_order_table
+                now = datetime.now()
+                cursor.execute(
+                    "UPDATE orders SET state = %s, updated_at = %s WHERE enum_order_table = %s",
+                    (state, now, enum_order_table)
+                )
+                self.connection.commit()
+                
+                # Obtener todos los pedidos actualizados
+                cursor.execute(
+                    "SELECT * FROM orders WHERE enum_order_table = %s ORDER BY created_at ASC",
+                    (enum_order_table,)
+                )
+                orders_in_group = cursor.fetchall()
+                
+                if not orders_in_group:
+                    logging.warning("No se pudieron recuperar los pedidos actualizados con enum_order_table: %s", enum_order_table)
+                    return None
+                
+                # Construir el pedido consolidado
+                first_order = orders_in_group[0]
+                last_order = orders_in_group[-1]
+                
+                consolidated_order = {
+                    "id": enum_order_table,
+                    "table_id": first_order.get("address", ""),
+                    "customer_name": first_order.get("user_name", ""),
+                    "products": [],
+                    "created_at": first_order["created_at"].isoformat() if isinstance(first_order["created_at"], datetime) else first_order["created_at"],
+                    "updated_at": now.isoformat(),
+                    "state": state
+                }
+                
+                # Agregar productos al pedido consolidado
+                order_total = 0.0
+                for order in orders_in_group:
+                    product_price = float(order.get("price", 0.0))
+                    product_quantity = int(order.get("quantity", 0))
+                    product_total = product_price * product_quantity
+                    order_total += product_total
+                    
+                    product = {
+                        "name": order.get("product_name", ""),
+                        "quantity": product_quantity,
+                        "price": product_price,
+                        "observations": order.get("details", "")
+                    }
+                    consolidated_order["products"].append(product)
+                
+                if state == "completado":
+                    logging.info(f"Pedido marcado como completado: {enum_order_table}, valor total: {order_total}")
+                
+                logging.info("Estado actualizado para pedidos con enum_order_table %s: %s", enum_order_table, state)
+                return consolidated_order
+                
+            except Error as err:
+                logging.exception("Error al actualizar el estado de los pedidos con enum_order_table %s: %s", enum_order_table, err)
+                return None
+            finally:
+                cursor.close()
+        except Exception as e:
+            logging.exception("Error general al actualizar el estado de los pedidos: %s", e)
+            return None
 

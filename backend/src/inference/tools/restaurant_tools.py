@@ -35,6 +35,7 @@ async def confirm_order_tool(
     product_name: str,
     quantity: int,
     address: str,
+    price: float,
     user_name: Optional[str],
     details: Optional[str],
     restaurant_id: str = "Macchiato",
@@ -48,6 +49,7 @@ async def confirm_order_tool(
         product_name (str): Nombre del producto.
         quantity (int): Cantidad del producto.
         address (str): Dirección de entrega del pedido.
+        price (float): Precio del producto.
         user_name (Optional[str]): Nombre del usuario que realiza el pedido.
         details (Optional[str]): Detalles adicionales del pedido.
         restaurant_id (str): Identificador del restaurante. Por defecto "Macchiato".
@@ -57,12 +59,16 @@ async def confirm_order_tool(
         Optional[str]: Mensaje de confirmación si el pedido se realiza con éxito, o None en caso de error.
     """
     order_id = genereta_id()
+
+    pdb.set_trace()
     
     # Obtener el último pedido usando address
     latest_order = await order_manager.get_latest_order()
     print()  
      # Verificar si el usuario tiene órdenes pendientes
     pending_orders = await order_manager.get_pending_orders_by_user_id(user_id)
+
+    pdb.set_trace()
     #verifica si hay ordenes 
     if latest_order:
         print(f"pendiente_orders: {pending_orders}")
@@ -94,6 +100,7 @@ async def confirm_order_tool(
         f"address: {address}\n"
         f"product_name: {product_name}\n"
         f"quantity: {quantity}\n"
+        f"price: {price}\n"
         f"user_name: {user_name}\n"
         f"state: {state}\n"
         f"restaurant_id: {restaurant_id}\n"
@@ -107,15 +114,19 @@ async def confirm_order_tool(
         "product_name": product_name,
         "quantity": quantity,
         "details": details,
+        "price": price,
         "state": state,
         "address": address,
         "user_name": user_name,
         "restaurant_id": restaurant_id,
         "user_id": user_id
     }
-
+    pdb.set_trace()
     try:
+        
         created_order = await order_manager.create_order(order)
+
+        logging.info(f"Pedido creado: {created_order}")
         # Update user information if user_id is provided
         print(user_id)
         if user_id:
