@@ -65,14 +65,20 @@ async function initializeDatabase() {
  */
 async function getLastConversation(userId) {
     try {
-        const [rows] = await dbPool.execute(
-            'SELECT * FROM conversations WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
-            [userId]
-        );
+        console.log(`🔍 Consultando última conversación para usuario: ${userId}`);
+        
+        const query = 'SELECT * FROM conversations WHERE user_id = ? ORDER BY created_at DESC LIMIT 1';
+        console.log('📝 Query SQL:', query);
+        console.log('📋 Parámetros:', [userId]);
+        
+        const [rows] = await dbPool.execute(query, [userId]);
+        console.log('📊 Resultados encontrados:', rows.length);
+        console.log('📄 Datos de la conversación:', rows[0] || 'No se encontraron conversaciones');
         
         return rows.length > 0 ? rows[0] : null;
     } catch (error) {
         console.error('❌ Error al consultar la última conversación:', error);
+        console.error('📌 Stack trace:', error.stack);
         return null;
     }
 }
@@ -91,13 +97,13 @@ async function shouldSendPdf(userId) {
         return true;
     }
     
-    // Verificar si ha pasado más de un día desde la última conversación
-    const lastUpdated = new Date(lastConversation.updated_at);
+    // Verificar si ha pasado más de un día desde la creación de la conversación
+    const createdAt = new Date(lastConversation.created_at);
     const currentDate = new Date();
-    const diffTime = Math.abs(currentDate - lastUpdated);
+    const diffTime = Math.abs(currentDate - createdAt);
     const diffDays = diffTime / (1000 * 60 * 60 * 24);
     
-    console.log(`📊 Días desde última conversación con ${userId}: ${diffDays.toFixed(2)}`);
+    console.log(`📊 Días desde la creación de la conversación con ${userId}: ${diffDays.toFixed(2)}`);
     
     return diffDays >= 1;
 }
@@ -171,22 +177,7 @@ io.on('connection', (socket) => {
             
             console.log(`📱 [${socket.id}] Enviando mensaje a ${formattedNumber}`);
             
-            // Verificar si se debe enviar el PDF automáticamente
-            const shouldSendPdfToUser = await shouldSendPdf(number);
-            console.log(`🚀 Enviando PDF automático para ${number}: ${shouldSendPdfToUser}`);
-            // Solo enviar el PDF en el evento send_message
-            if (shouldSendPdfToUser) {
-                console.log(`📎 [${socket.id}] Enviando PDF automático a ${formattedNumber}`);
-                try {
-                    // Primero enviar el PDF
-                    await sendPdfToUser(formattedNumber);
-                    console.log(`✅ [${socket.id}] PDF enviado correctamente, procediendo con mensaje de texto`);
-                } catch (pdfError) {
-                    console.error(`❌ [${socket.id}] Error al enviar PDF:`, pdfError);
-                    // Continuar con el envío del mensaje de texto aunque falle el PDF
-                }
-            }
-            
+
             // Enviar un ping antes del envío para mantener la conexión viva
             socket.emit('keep_alive');
             
@@ -291,6 +282,18 @@ async function connectToWhatsApp() {
             };
             
             console.log('📩 Nuevo mensaje:', newMessage);
+            
+            // Verificar si se debe enviar el PDF automáticamente
+            const shouldSendPdfToUser = await shouldSendPdf(message.key.remoteJid.split('@')[0]);
+            if (shouldSendPdfToUser) {
+                console.log(`📎 Enviando PDF automático a ${message.key.remoteJid}`);
+                try {
+                    await sendPdfToUser(message.key.remoteJid);
+                    console.log(`✅ PDF enviado correctamente a ${message.key.remoteJid}`);
+                } catch (pdfError) {
+                    console.error('❌ Error al enviar PDF:', pdfError);
+                }
+            }
             
             // Emitir evento de mensaje nuevo
             io.emit('new_message', newMessage);
