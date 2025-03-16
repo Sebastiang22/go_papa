@@ -66,19 +66,21 @@ async def confirm_order_tool(
     #verifica si hay ordenes 
     if latest_order:
         print(f"pendiente_orders: {pending_orders}")
-        # Si el usuario tiene órdenes pendientes, usar el enum_order_table de la última orden pendiente
+        # Si el usuario tiene órdenes pendientes, verificar el estado de la última orden
         if pending_orders and len(pending_orders) > 0:
-            # Usar el enum_order_table de la última orden pendiente
-            enum_order_table = int(pending_orders[0]['enum_order_table'])
-            logging.info("Usuario tiene órdenes pendientes. Usando enum_order_table: %s", enum_order_table)
-        else:
-            # Si no hay órdenes pendientes o la última orden está terminada
-            if latest_order['state'] == 'terminado':
-                logging.info("Último pedido realizado y terminado: %s", latest_order)
-                enum_order_table = int(latest_order['enum_order_table']) + 1
+            last_order_state = pending_orders[0]['state']
+            # Si el estado es 'pendiente' o 'enpreparacion', usar el mismo enum_order_table
+            if last_order_state in ['pendiente', 'enpreparacion']:
+                enum_order_table = int(pending_orders[0]['enum_order_table'])
+                logging.info("Usuario tiene órdenes en proceso. Usando enum_order_table: %s", enum_order_table)
             else:
-                logging.info("Último pedido realizado: %s", latest_order)
-                enum_order_table = int(latest_order['enum_order_table'])
+                # Si el estado es 'terminado', incrementar el enum_order_table
+                enum_order_table = int(latest_order['enum_order_table']) + 1
+                logging.info("Último pedido terminado. Incrementando enum_order_table a: %s", enum_order_table)
+        else:
+            # Si no hay órdenes pendientes, incrementar el enum_order_table
+            enum_order_table = int(latest_order['enum_order_table']) + 1
+            logging.info("No hay órdenes pendientes. Incrementando enum_order_table a: %s", enum_order_table)
     else:
         logging.info("No se encontró un pedido previo para la dirección: %s", address)
         enum_order_table = 1
