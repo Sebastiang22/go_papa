@@ -469,46 +469,51 @@ class MySQLOrderManager:
             return None
     
     
-    async def get_pending_orders_by_user_id(self, user_id: Optional[str]) -> List[Dict[str, Any]]:
+    async def get_pending_orders_by_user_id(self, user_id: Optional[str]) -> Optional[Dict[str, Any]]:
         """
-        Recupera los pedidos pendientes de un usuario específico.
+        Recupera el último pedido de un usuario específico.
 
         :param user_id: ID del usuario.
-        :return: Lista de pedidos pendientes del usuario.
+        :return: El último pedido del usuario o None si no existe.
         """
         try:
             if not user_id:
-                return []
+                return None
 
             if self.connection is None or not self.connection.is_connected():
                 self._connect()
                 if self.connection is None or not self.connection.is_connected():
                     logging.error("Failed to connect to MySQL database")
-                    return []
+                    return None
             
             cursor = self.connection.cursor(dictionary=True)
             try:
-                # Modificado para obtener todos los pedidos del usuario ordenados por fecha de creación
-                query = "SELECT * FROM orders WHERE user_id = %s ORDER BY created_at DESC"
+                # Get the latest order for the user
+                query = """
+                    SELECT * FROM orders 
+                    WHERE user_id = %s 
+                    ORDER BY created_at DESC 
+                    LIMIT 1
+                """
                 cursor.execute(query, (user_id,))
-                orders = cursor.fetchall()
+                order = cursor.fetchone()
                 
-                if orders:
-                    for order in orders:
-                        if 'created_at' in order:
-                            order['created_at'] = order['created_at'].isoformat()
-                        if 'updated_at' in order:
-                            order['updated_at'] = order['updated_at'].isoformat()
+                if order:
+                    if 'created_at' in order:
+                        order['created_at'] = order['created_at'].isoformat()
+                    if 'updated_at' in order:
+                        order['updated_at'] = order['updated_at'].isoformat()
+                    return order
                 
-                return orders
+                return None
             except Error as err:
-                logging.exception("Error al recuperar pedidos: %s", err)
-                return []
+                logging.exception("Error al recuperar pedido: %s", err)
+                return None
             finally:
                 cursor.close()
         except Exception as e:
-            logging.exception("Error general al recuperar pedidos: %s", e)
-            return []
+            logging.exception("Error general al recuperar pedido: %s", e)
+            return None
     
     async def get_all_orders(self) -> Dict[str, Any]:
         """

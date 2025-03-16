@@ -3,6 +3,7 @@
  * @version 1.1.0
  */
 
+require('dotenv').config();
 const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = require('@whiskeysockets/baileys');
 const express = require('express');
 const cors = require('cors');
@@ -38,13 +39,16 @@ const pdfFilePath = path.join(__dirname, 'plantilla_creditos.pdf');
 async function initializeDatabase() {
     try {
         dbPool = await mysql.createPool({
-            host: process.env.DB_HOST || 'localhost',
-            user: process.env.DB_USER || 'root',
-            password: process.env.DB_PASSWORD || '1234',
-            database: process.env.DB_NAME || 'juanchito_plaza',
+            host: process.env.DB_HOST,
+            user: process.env.DB_USER,
+            password: process.env.DB_PASSWORD,
+            database: process.env.DB_DATABASE,
             waitForConnections: true,
             connectionLimit: 10,
-            queueLimit: 0
+            queueLimit: 0,
+            ssl: {
+                rejectUnauthorized: true
+            }
         });
         
         console.log('✅ Conexión a la base de datos establecida');
@@ -80,7 +84,7 @@ async function getLastConversation(userId) {
  */
 async function shouldSendPdf(userId) {
     const lastConversation = await getLastConversation(userId);
-    
+    console.log(`📊 Última conversación para ${userId}:`, lastConversation);
     // Si no hay conversación previa, enviar PDF
     if (!lastConversation) {
         console.log(`📊 No hay conversaciones previas para ${userId}, enviando PDF`);
@@ -169,7 +173,7 @@ io.on('connection', (socket) => {
             
             // Verificar si se debe enviar el PDF automáticamente
             const shouldSendPdfToUser = await shouldSendPdf(number);
-            
+            console.log(`🚀 Enviando PDF automático para ${number}: ${shouldSendPdfToUser}`);
             // Solo enviar el PDF en el evento send_message
             if (shouldSendPdfToUser) {
                 console.log(`📎 [${socket.id}] Enviando PDF automático a ${formattedNumber}`);

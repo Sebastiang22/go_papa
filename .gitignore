@@ -1,21 +1,2 @@
-.venv
-__pycache__
-
-# Ignorar entornos virtuales locales
-venv
-env
-*.pyc
-__pycache__/
-
-
-# Ignorar archivos y directorios del frontend que no necesitamos
-/frontend/node_modules
-/frontend/.cache
-
-# Ignorar los archivos de compilación locales
-/backend/__pycache__/
-*.log
-*.sqlite3
+# Environment Variables
 .env
-# Ignorar archivos relacionados con Docker, que no son necesarios dentro del contenedor
-restagentfrontend
