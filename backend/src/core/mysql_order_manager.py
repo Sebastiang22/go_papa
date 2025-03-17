@@ -92,7 +92,6 @@ class MySQLOrderManager:
         :param order: Diccionario que representa el pedido.
         :return: El pedido creado o None en caso de error.
         """
-        pdb.set_trace()
         try:
             if self.connection is None or not self.connection.is_connected():
                 self._connect()
@@ -112,7 +111,7 @@ class MySQLOrderManager:
             try:
                 # Preparar los campos y valores para la inserción
                 fields = ["id", "enum_order_table", "product_id", "product_name", 
-                          "quantity", "details", "state", "address", "price", "user_name", "user_id",
+                          "quantity", "details", "state", "address", "user_name", "user_id",
                           "created_at", "updated_at"]
                 
                 # Agregar campos opcionales si existen

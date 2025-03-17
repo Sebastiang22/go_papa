@@ -60,24 +60,20 @@ async def confirm_order_tool(
     """
     order_id = genereta_id()
 
-    pdb.set_trace()
-    
     # Obtener el último pedido usando address
     latest_order = await order_manager.get_latest_order()
     print()  
      # Verificar si el usuario tiene órdenes pendientes
-    pending_orders = await order_manager.get_pending_orders_by_user_id(user_id)
-
-    pdb.set_trace()
+    last_order_user = await order_manager.get_pending_orders_by_user_id(user_id)
     #verifica si hay ordenes 
     if latest_order:
-        print(f"pendiente_orders: {pending_orders}")
+        print(f"pendiente_orders: {last_order_user}")
         # Si el usuario tiene órdenes pendientes, verificar el estado de la última orden
-        if pending_orders and len(pending_orders) > 0:
-            last_order_state = pending_orders[0]['state']
+        if last_order_user :
+            last_order_state = last_order_user['state']
             # Si el estado es 'pendiente' o 'enpreparacion', usar el mismo enum_order_table
             if last_order_state in ['pendiente', 'enpreparacion']:
-                enum_order_table = int(pending_orders[0]['enum_order_table'])
+                enum_order_table = int(last_order_user['enum_order_table'])
                 logging.info("Usuario tiene órdenes en proceso. Usando enum_order_table: %s", enum_order_table)
             else:
                 # Si el estado es 'terminado', incrementar el enum_order_table
@@ -121,7 +117,6 @@ async def confirm_order_tool(
         "restaurant_id": restaurant_id,
         "user_id": user_id
     }
-    pdb.set_trace()
     try:
         
         created_order = await order_manager.create_order(order)

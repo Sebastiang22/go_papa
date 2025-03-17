@@ -36,114 +36,6 @@ const pdfFilePath = path.join(__dirname, 'plantilla_creditos.pdf');
 /**
  * Inicializa la conexión a la base de datos
  */
-async function initializeDatabase() {
-    try {
-        dbPool = await mysql.createPool({
-            host: process.env.DB_HOST,
-            user: process.env.DB_USER,
-            password: process.env.DB_PASSWORD,
-            database: process.env.DB_DATABASE,
-            waitForConnections: true,
-            connectionLimit: 10,
-            queueLimit: 0,
-            ssl: {
-                rejectUnauthorized: true
-            }
-        });
-        
-        console.log('✅ Conexión a la base de datos establecida');
-    } catch (error) {
-        console.error('❌ Error al conectar con la base de datos:', error);
-        process.exit(1);
-    }
-}
-
-/**
- * Obtiene la última conversación de un usuario
- * @param {string} userId - ID del usuario (número de teléfono)
- * @returns {Object|null} - Última conversación o null si no existe
- */
-async function getLastConversation(userId) {
-    try {
-        console.log(`🔍 Consultando última conversación para usuario: ${userId}`);
-        
-        const query = 'SELECT * FROM conversations WHERE user_id = ? ORDER BY created_at DESC LIMIT 1';
-        console.log('📝 Query SQL:', query);
-        console.log('📋 Parámetros:', [userId]);
-        
-        const [rows] = await dbPool.execute(query, [userId]);
-        console.log('📊 Resultados encontrados:', rows.length);
-        console.log('📄 Datos de la conversación:', rows[0] || 'No se encontraron conversaciones');
-        
-        return rows.length > 0 ? rows[0] : null;
-    } catch (error) {
-        console.error('❌ Error al consultar la última conversación:', error);
-        console.error('📌 Stack trace:', error.stack);
-        return null;
-    }
-}
-
-/**
- * Verifica si debe enviarse el PDF automáticamente
- * @param {string} userId - ID del usuario (número de teléfono)
- * @returns {boolean} - true si debe enviarse el PDF
- */
-async function shouldSendPdf(userId) {
-    const lastConversation = await getLastConversation(userId);
-    console.log(`📊 Última conversación para ${userId}:`, lastConversation);
-    // Si no hay conversación previa, enviar PDF
-    if (!lastConversation) {
-        console.log(`📊 No hay conversaciones previas para ${userId}, enviando PDF`);
-        return true;
-    }
-    
-    // Verificar si ha pasado más de un día desde la creación de la conversación
-    const createdAt = new Date(lastConversation.created_at);
-    const currentDate = new Date();
-    const diffTime = Math.abs(currentDate - createdAt);
-    const diffDays = diffTime / (1000 * 60 * 60 * 24);
-    
-    console.log(`📊 Días desde la creación de la conversación con ${userId}: ${diffDays.toFixed(2)}`);
-    
-    return diffDays >= 1;
-}
-
-/**
- * Envía un PDF al usuario
- * @param {string} userId - ID del usuario con formato @s.whatsapp.net
- * @returns {Promise<boolean>} - true si se envió correctamente
- */
-async function sendPdfToUser(userId) {
-    try {
-        if (!globalSocket) {
-            console.error('❌ WhatsApp no está conectado para enviar PDF');
-            return false;
-        }
-        
-        // Verificar que el archivo exista
-        if (!fs.existsSync(pdfFilePath)) {
-            console.error('❌ El archivo PDF no existe en:', pdfFilePath);
-            return false;
-        }
-        
-        // Leer el archivo PDF
-        const pdfBuffer = fs.readFileSync(pdfFilePath);
-        
-        // Enviar el documento
-        await globalSocket.sendMessage(userId, {
-            document: pdfBuffer,
-            fileName: 'menu.pdf',
-            mimetype: 'application/pdf',
-            caption: 'MENU.'
-        });
-        
-        console.log(`✅ PDF enviado correctamente a ${userId}`);
-        return true;
-    } catch (error) {
-        console.error('❌ Error al enviar PDF:', error);
-        return false;
-    }
-}
 
 /**
  * Maneja las conexiones de Socket.IO
@@ -214,6 +106,59 @@ io.on('connection', (socket) => {
         });
     });
 
+    // Nuevo evento para enviar PDF
+    socket.on('send_pdf', async (data, callback) => {
+        console.log(`📤 [${socket.id}] Intento de envío de PDF:`, data);
+        try {
+            if (!globalSocket) {
+                console.error(`❌ [${socket.id}] WhatsApp no está conectado`);
+                callback({ success: false, error: 'WhatsApp no está conectado' });
+                return;
+            }
+
+            const { number } = data;
+            const formattedNumber = number.replace(/[^d]/g, '') + '@s.whatsapp.net';
+            
+            console.log(`📱 [${socket.id}] Enviando PDF a ${formattedNumber}`);
+            
+            // Verificar si el archivo PDF existe
+            if (!fs.existsSync(pdfFilePath)) {
+                console.error(`❌ [${socket.id}] El archivo PDF no existe en la ruta: ${pdfFilePath}`);
+                callback({ success: false, error: 'El archivo PDF no existe' });
+                return;
+            }
+
+            // Enviar un ping antes del envío para mantener la conexión viva
+            socket.emit('keep_alive');
+            
+            try {
+                await Promise.race([
+                    globalSocket.sendMessage(formattedNumber, {
+                        document: { url: pdfFilePath },
+                        mimetype: 'application/pdf',
+                        fileName: 'plantilla_creditos.pdf'
+                    }),
+                    new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Timeout al enviar PDF')), 25000)
+                    )
+                ]);
+
+                console.log(`✅ [${socket.id}] PDF enviado correctamente`);
+                
+                // Enviar otro ping después del envío
+                socket.emit('keep_alive');
+                
+                callback({ success: true, message: 'PDF enviado correctamente' });
+            } catch (error) {
+                console.error(`❌ [${socket.id}] Error al enviar PDF:`, error);
+                callback({ success: false, error: error.message || 'Error al enviar PDF' });
+            }
+        } catch (error) {
+            console.error(`❌ [${socket.id}] Error general:`, error);
+            callback({ success: false, error: error.message || 'Error general al procesar el envío de PDF' });
+        }
+    });
+
     socket.on('disconnect', (reason) => {
         console.log(`❌ [${socket.id}] Cliente desconectado. Razón:`, reason);
         console.log('📊 Total clientes conectados:', io.engine.clientsCount);
@@ -282,6 +227,7 @@ async function connectToWhatsApp() {
             };
             
             console.log('📩 Nuevo mensaje:', newMessage);
+            
             // Emitir evento de mensaje nuevo
             io.emit('new_message', newMessage);
         }
@@ -295,9 +241,6 @@ async function connectToWhatsApp() {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, async () => {
     console.log(`🚀 Servidor WhatsApp escuchando en http://localhost:${PORT}`);
-    
-    // Inicializar la base de datos
-    await initializeDatabase();
     
     // Iniciar conexión con WhatsApp
     connectToWhatsApp();

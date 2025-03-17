@@ -192,8 +192,6 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
         
     new_messages.append(response_msg)
 
-    pdb.set_trace()
-
     # 3) Retornar el estado final
     return {
         "messages": new_messages,
