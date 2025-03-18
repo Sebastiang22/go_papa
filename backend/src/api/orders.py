@@ -43,19 +43,25 @@ async def update_order_state(request: RequestHTTPUpdateState):
       - state: Nuevo estado (por ejemplo, "pendiente", "completado", etc.).
       - partition_key: (Opcional) Clave de partición.
     """
-    updated_order = await order_manager.update_order_status(
-        enum_order_table=request.order_id,
-        state=request.state,
-        partition_key=request.partition_key
-    )
-    import pdb
-
-    if not updated_order:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No se encontró el pedido {request.order_id} o no se pudo actualizar."
+    try:
+        updated_order = await order_manager.update_order_status(
+            enum_order_table=request.order_id,
+            state=request.state,
+            partition_key=request.partition_key
         )
-    return updated_order
+
+        if not updated_order:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No se encontró el pedido {request.order_id} o no se pudo actualizar."
+            )
+        return updated_order
+    except Exception as e:
+        logging.exception("Error al actualizar el estado del pedido: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error interno al actualizar el pedido: {str(e)}"
+        )
 
 @orders_router.delete("/{order_id}")
 async def delete_order(order_id: str, partition_key: Optional[str] = None):
