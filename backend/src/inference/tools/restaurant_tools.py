@@ -140,13 +140,13 @@ async def confirm_order_tool(
         logging.exception("Error al confirmar el pedido: %s", e)
         return None
 
-async def get_order_status_tool(address: str, restaurant_id: str = "Macchiato") -> str:
+async def get_order_status_tool(address: str, restaurant_name: str = "Macchiato") -> str:
     """
     Consulta el estado del pedido consolidado para una dirección determinada.
     
     Parámetros:
         address (str): Dirección de entrega del pedido.
-        restaurant_id (str): Identificador del restaurante. Por defecto "Macchiato".
+        restaurant_name (str): Identificador del restaurante. Por defecto "Macchiato".
     
     Retorna:
         str: Información formateada del pedido o un mensaje informativo si no se encuentra.
@@ -157,7 +157,7 @@ async def get_order_status_tool(address: str, restaurant_id: str = "Macchiato") 
     print(
         f"\033[92m\nget_order_status_tool activada\n"
         f"address: {address}\n"
-        f"restaurant_id: {restaurant_id}\n"
+        f"restaurant_name: {restaurant_name}\n"
         f"order_info: {json.dumps(order_info, indent=4)}\033[0m"
     )
     return f"Pedido: {order_info}"
@@ -169,7 +169,7 @@ async def send_menu_pdf_tool(
     restaurant_id: str = "Macchiato"
 ) -> str:
     """
-    Envía el PDF del menú al usuario a través de WhatsApp.
+    Envía el menú al usuario a través de WhatsApp.
 
     Args:
         user_id ([str]): Identificador del usuario que realiza el pedido.
@@ -184,7 +184,7 @@ async def send_menu_pdf_tool(
         await cliente.conectar()
         
         if await cliente.enviar_pdf(user_id):
-            return "El menú en PDF ha sido enviado exitosamente a tu WhatsApp. 📄✨"
+            return "El menú ha sido enviado exitosamente a tu WhatsApp. 📄✨"
         else:
             return "Lo siento, hubo un problema al enviar el menú en PDF. Por favor, intenta nuevamente más tarde. 😔"
     except Exception as e:
