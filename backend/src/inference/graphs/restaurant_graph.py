@@ -13,7 +13,7 @@ import pdb
 from IPython.display import Image, display
 from langchain_core.runnables.graph import CurveStyle, MermaidDrawMethod, NodeStyles
 from datetime import datetime
-from inference.tools.restaurant_tools import get_menu_tool,confirm_order_tool,get_order_status_tool
+from inference.tools.restaurant_tools import get_menu_tool,confirm_order_tool,get_order_status_tool,send_menu_pdf_tool
 import json
 import asyncio
 from langchain_openai import ChatOpenAI
@@ -45,6 +45,11 @@ SYSTEM_PROMPT =     """
 
         Herramientas disponibles:
 
+        - enviar_menu_pdf:
+            Esta herramienta se utiliza para enviar el menú en formato PDF al WhatsApp del cliente.
+            Cuando el cliente solicite el menú en PDF, utiliza esta herramienta para enviárselo.
+            La herramienta se encargará de enviar el PDF y confirmar el envío.
+            llama la herramienta con el user_id del cliente que se te proporciona en {{user_info}}.
 
         - confirmar_pedido:
 
@@ -64,7 +69,7 @@ SYSTEM_PROMPT =     """
         - get_menu_tool:
 
             Esta herramienta se utiliza para obtener la disponibilidad del menú en tiempo real.
-            IMPORTANTE: Debes llamar a esta herramienta cada vez que el cliente pregunte por el menú o antes de confirmar un pedido.
+            IMPORTANTE: antes de confirmar un pedido.
             Solo debes ofrecer y permitir ordenar los productos que tengan unidades disponibles en el inventario.
             Nunca menciones la cantidad disponible en el inventario, a menos que el usuario mencione ser el 'administrador' o 'admin'.
             Si un producto no está disponible en el inventario, no lo menciones ni lo ofrezcas al cliente.
@@ -123,6 +128,7 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
         
         user_info = (
             f"Información del Cliente:\n"
+            f"user_id: {user_data.get('user_id', 'No disponible')}\n"
             f"Nombre: {user_data.get('name', 'No disponible')}\n"
             f"Dirección: {user_data.get('address', 'No disponible')}"
             f"{orders_info}"
@@ -140,7 +146,7 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
     # {"tool_calls": [{"name": "search_tool", "args": "..."}]}
     # In main_agent_node function
     llm_with_tools = llm_raw.bind_tools(
-    tools=[confirm_order_tool, get_menu_tool]
+    tools=[confirm_order_tool, get_menu_tool, send_menu_pdf_tool]
         )
 
     # 2) Bucle: Llamamos al LLM -> revisamos tool_calls -> ejecutamos -> loop
@@ -191,6 +197,7 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
         response_msg.tool_calls = tool_calls_verified 
         
     new_messages.append(response_msg)
+    print(response_msg)
 
     # 3) Retornar el estado final
     return {
@@ -240,7 +247,7 @@ class RestaurantChatAgent:
 
         # 2) Añadimos un solo nodo (main_agent_node)
         graph.add_node("AgentNode", main_agent_node)
-        graph.add_node("ToolsNode", ToolNode([confirm_order_tool, get_menu_tool]))#get_order_status_tool]
+        graph.add_node("ToolsNode", ToolNode([confirm_order_tool, get_menu_tool, send_menu_pdf_tool]))#get_order_status_tool]
 
         # 3)
         graph.add_edge(START, "AgentNode")
