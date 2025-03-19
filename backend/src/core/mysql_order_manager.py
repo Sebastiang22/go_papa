@@ -244,8 +244,7 @@ class MySQLOrderManager:
                     {
                         "name": <product_name>,
                         "quantity": <quantity>,
-                        "price": <price>,
-                        "observations": <details>
+                        "price": <price>
                     },
                     ...
                 ],
@@ -294,7 +293,7 @@ class MySQLOrderManager:
                 # Construir el pedido consolidado
                 first_order = orders_in_group[0]
                 last_order = orders_in_group[-1]
-                
+                print("first_order: ", first_order)
                 consolidated_order = {
                     "id": enum_order_table,
                     "address": first_order["address"],
@@ -302,27 +301,20 @@ class MySQLOrderManager:
                     "enum_order_table": enum_order_table,
                     "products": [],
                     "created_at": first_order.get("created_at").isoformat() if isinstance(first_order.get("created_at"), datetime) else first_order.get("created_at"),
-                    "updated_at": last_order.get("updated_at").isoformat() if isinstance(last_order.get("updated_at"), datetime) else last_order.get("updated_at"),
-                    "state": last_order.get("state", "pendiente")
+                    "updated_at": latest_order.get("updated_at").isoformat() if isinstance(latest_order.get("updated_at"), datetime) else latest_order.get("updated_at"),
+                    "state": latest_order.get("state", "pendiente")
                 }
                 
                 # Agregar productos al pedido consolidado
-                order_total = 0.0
                 for order in orders_in_group:
-                    product_price = float(order.get("price", 0.0))
-                    product_quantity = int(order.get("quantity", 0))
-                    product_total = product_price * product_quantity
-                    order_total += product_total
-                    
                     product = {
                         "name": order.get("product_name", ""),
-                        "quantity": product_quantity,
-                        "price": product_price,
-                        "observations": order.get("details", "")
+                        "quantity": order.get("quantity", 0),
+                        "price": order.get("price", 0.0),
+                        "details": order.get("details", "")
                     }
                     consolidated_order["products"].append(product)
                 
-                logging.info(f"Pedido consolidado obtenido para dirección {address}: valor total: {order_total}")
                 return consolidated_order
             except Error as err:
                 logging.exception("Error al recuperar el estado del pedido para dirección %s: %s", address, err)
