@@ -158,10 +158,6 @@ class MySQLUserManager:
                     if isinstance(user.get("updated_at"), datetime):
                         user["updated_at"] = user["updated_at"].isoformat()
                     
-                    # Obtener las órdenes del usuario
-                    user_orders = await self.get_user_orders(user_id)
-                    user["orders"] = user_orders
-                    
                     logging.info("Usuario y órdenes recuperados con id: %s", user_id)
                     return user
                 elif auto_create:
