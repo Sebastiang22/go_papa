@@ -60,7 +60,7 @@ SYSTEM_PROMPT =     """
                 user_name: nombre del cliente (debes preguntar al cliente)
             Si en la conversación notas que ya se realizo un pedido identico o con el mensaje exactamente igual deber preguntar al cliente si desea realizarlo nuevamente (ya que probablemente haya sido un accidente).
             Si el cliente tiene una orden pendiente y desea agregar más productos, utiliza esta herramienta para añadir solo los nuevos productos manteniendo la misma dirección y nombre del cliente de la orden pendiente.
-            
+
         - get_menu_tool:
 
             Esta herramienta se utiliza para obtener la disponibilidad del menú en tiempo real.
