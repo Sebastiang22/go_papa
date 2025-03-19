@@ -31,7 +31,7 @@ let globalSocket = null;
 let dbPool = null;
 
 // Ruta al archivo PDF (en la raíz del proyecto)
-const pdfFilePath = path.join(__dirname, 'menu_go_papa.pdf');
+const pdfFilePath = path.join(__dirname, 'plantilla_creditos.pdf');
 
 /**
  * Inicializa la conexión a la base de datos
@@ -117,7 +117,7 @@ io.on('connection', (socket) => {
             }
 
             const { number } = data;
-            const formattedNumber = number.replace(/[^\d]/g, '') + '@s.whatsapp.net';
+            const formattedNumber = number.replace(/[^d]/g, '') + '@s.whatsapp.net';
             
             console.log(`📱 [${socket.id}] Enviando PDF a ${formattedNumber}`);
             
@@ -132,15 +132,14 @@ io.on('connection', (socket) => {
             socket.emit('keep_alive');
             
             try {
-                const pdfBuffer = fs.readFileSync(pdfFilePath);
                 await Promise.race([
                     globalSocket.sendMessage(formattedNumber, {
-                        document: pdfBuffer,
+                        document: { url: pdfFilePath },
                         mimetype: 'application/pdf',
-                        fileName: 'wha_api\menu_go_papa.pdf'
+                        fileName: 'plantilla_creditos.pdf'
                     }),
                     new Promise((_, reject) => 
-                        setTimeout(() => reject(new Error('Timeout al enviar PDF')), 60000)
+                        setTimeout(() => reject(new Error('Timeout al enviar PDF')), 25000)
                     )
                 ]);
 

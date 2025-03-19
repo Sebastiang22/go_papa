@@ -293,8 +293,6 @@ class MySQLUserManager:
                     SELECT enum_order_table, created_at
                     FROM orders 
                     WHERE user_id = %s
-                    AND state != 'completado'
-                    AND DATE(created_at) = CURDATE()
                     ORDER BY created_at DESC
                     LIMIT 1
                 """, (user_id,))
