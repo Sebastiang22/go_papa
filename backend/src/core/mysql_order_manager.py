@@ -302,7 +302,7 @@ class MySQLOrderManager:
                     "products": [],
                     "created_at": first_order.get("created_at").isoformat() if isinstance(first_order.get("created_at"), datetime) else first_order.get("created_at"),
                     "updated_at": latest_order.get("updated_at").isoformat() if isinstance(latest_order.get("updated_at"), datetime) else latest_order.get("updated_at"),
-                    "state": latest_order.get("state", "pendiente")
+                    "state": latest_order.get("state")
                 }
                 
                 # Agregar productos al pedido consolidado
