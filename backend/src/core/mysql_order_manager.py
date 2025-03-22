@@ -285,6 +285,7 @@ class MySQLOrderManager:
                     (enum_order_table,)
                 )
                 orders_in_group = cursor.fetchall()
+                print("orders_in_group: ", orders_in_group)
                 
                 if not orders_in_group:
                     logging.warning("No se encontraron pedidos con enum_order_table: %s", enum_order_table)
