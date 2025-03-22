@@ -37,7 +37,7 @@ class RestaurantState(MessagesState):
 
 SYSTEM_PROMPT =     """
         Fecha y Hora Actual: {{fecha-hora}}
-        Eres un asistente de IA especializado en atención a clientes en nuestro restaurante. Tu misión es guiar a los comensales en el proceso de seleccionar y confirmar cada producto o plato de su pedido.
+        Eres un asistente de IA especializado en atención a clientes en nuestro restaurante {{restaurant_name}}. Tu misión es guiar a los comensales en el proceso de seleccionar y confirmar cada producto o plato de su pedido.
         Responde de manera amigable usando emojis de vez en cuando.
         Debes indagar o preguntar los datos necesarios para realizar la orden.
 
@@ -54,6 +54,7 @@ SYSTEM_PROMPT =     """
                 product_id : id del producto (que obtienes llamando a la tool get_menu_tool)
                 product_name: nombre del producto (que obtienes llamando a la tool get_menu_tool)
                 quantity: cantidad de productos a comprar (que debes preguntar al cliente)
+                price: precio del producto (que obtienes multiplicando la cantidad por el precio del producto que obtienes llamando a la tool get_menu_tool)
                 details: detalles adicionales del pedido (debes agregar si el cliente las menciona, de lo contrario puedes dejarlo en blanco)
                 address: dirección de entrega del pedido (debes preguntar al cliente)
                 user_name: nombre del cliente (debes preguntar al cliente)
@@ -68,6 +69,13 @@ SYSTEM_PROMPT =     """
             Nunca menciones la cantidad disponible en el inventario, a menos que el usuario mencione ser el 'administrador' o 'admin'.
             Si un producto no está disponible en el inventario, no lo menciones ni lo ofrezcas al cliente.
 
+        - get_order_status_tool:
+
+            Esta herramienta se utiliza para consultar el estado del pedido de un cliente.
+            Debes llamar a esta herramienta cuando el cliente pregunte por el estado de su pedido.
+            Para usar esta herramienta necesitas la dirección del cliente.
+            Si el cliente no proporciona su dirección, debes preguntársela antes de usar esta herramienta.
+            Presenta la información del pedido de manera clara y amigable al cliente.
 
         Saludo y cortesía: Inicia cada conversación saludando de forma amigable, amable y profesional.
         Indagación: Si el cliente no tiene órdenes pendientes, procede inmediatamente a mostrarle el menú y ayudarle a realizar su pedido. Si tiene órdenes pendientes, infórmale sobre su estado actual y pregúntale si desea agregar más productos.
@@ -77,6 +85,7 @@ SYSTEM_PROMPT =     """
             Una vez confirmada la disponibilidad y que el cliente seleccione un producto, pregunta confirmando su elección y llama a confirmar_pedido.
             Si el cliente tiene una orden pendiente, infórmale sobre su estado actual y pregúntale si desea agregar más productos a esa orden.
             Si el cliente es nuevo o no tiene órdenes pendientes, muéstrale inmediatamente el menú y ayúdale a realizar su primer pedido.
+            Si el pedido está en estado "completo" o "terminado", ofrece al cliente tomar un nuevo pedido mostrándole el menú actualizado.
             
         Claridad y veracidad: Proporciona respuestas claras y precisas. Si ocurre algún error o la herramienta no procesa correctamente la solicitud, informa al cliente de forma amable.
         Actúa de manera muy servicial preguntando si hay alguna otra orden o pedido que quiera realizar, preguntando por bebidas u otros platos que deseen ordenar.
@@ -110,25 +119,14 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
     user_data = await user_manager.get_user(user_id)
     print(f"Información del Usuario: {user_data}")
     if user_data:
-        # Get user orders
-        user_orders = await user_manager.get_user_orders(user_id)
-        orders_info = ""
-        if user_orders:
-            orders_info = "\nHistorial de Pedidos:\n" + "\n".join([
-                f"- Pedido {order['order_id']}: {', '.join(order['products'])} "
-                f"(Estado: {order['state']})"
-                for order in user_orders[:3]  # Show only last 3 orders
-            ])
-        
         user_info = (
             f"Información del Cliente:\n"
             f"Nombre: {user_data.get('name', 'No disponible')}\n"
             f"Dirección: {user_data.get('address', 'No disponible')}"
-            f"{orders_info}"
         )
 
     # Inyectar la información del usuario en el prompt del sistema
-    system_prompt_with_user = SYSTEM_PROMPT.replace("{{fecha-hora}}", datetime.now().isoformat()).replace("{{user_info}}", user_info)
+    system_prompt_with_user = SYSTEM_PROMPT.replace("{{fecha-hora}}", datetime.now().isoformat()).replace("{{user_info}}", user_info).replace("{{restaurant_name}}", state.get("restaurant_name", "Macchiato"))
     system_msg = SystemMessage(content=system_prompt_with_user)
     new_messages = [system_msg] + state["messages"][-max_messages:]
 
@@ -139,7 +137,7 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
     # {"tool_calls": [{"name": "search_tool", "args": "..."}]}
     # In main_agent_node function
     llm_with_tools = llm_raw.bind_tools(
-    tools=[confirm_order_tool, get_menu_tool]
+    tools=[confirm_order_tool, get_menu_tool, get_order_status_tool]
         )
 
     # 2) Bucle: Llamamos al LLM -> revisamos tool_calls -> ejecutamos -> loop
@@ -239,7 +237,7 @@ class RestaurantChatAgent:
 
         # 2) Añadimos un solo nodo (main_agent_node)
         graph.add_node("AgentNode", main_agent_node)
-        graph.add_node("ToolsNode", ToolNode([confirm_order_tool, get_menu_tool,get_order_status_tool]))
+        graph.add_node("ToolsNode", ToolNode([confirm_order_tool, get_menu_tool, get_order_status_tool]))
 
         # 3)
         graph.add_edge(START, "AgentNode")

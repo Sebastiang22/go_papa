@@ -56,6 +56,19 @@ async def add_go_papa_menu_items():
         
         # Go Papita
         {"name": "Go Papita", "quantity": 1, "unit": "porción", "price": 21000},
+
+        # Bebidas
+        {"name": "Agua", "quantity": 1, "unit": "unidad", "price": 3000},
+        {"name": "Soda", "quantity": 1, "unit": "unidad", "price": 5000},
+        {"name": "Hit 200 ml", "quantity": 1, "unit": "unidad", "price": 3000},
+        {"name": "Hit 400 ml", "quantity": 1, "unit": "unidad", "price": 5000},
+        {"name": "Hit Familiar", "quantity": 1, "unit": "unidad", "price": 8000},
+        {"name": "Cerveza Poker", "quantity": 1, "unit": "unidad", "price": 6000},
+        {"name": "Coca Cola", "quantity": 1, "unit": "unidad", "price": 5000},
+        {"name": "Coca Cola Zero", "quantity": 1, "unit": "unidad", "price": 5000},
+        {"name": "Coca Cola 1.5 Lt", "quantity": 1, "unit": "unidad", "price": 9000},
+        {"name": "Postobón 1.5 Lt", "quantity": 1, "unit": "unidad", "price": 8000},
+        {"name": "Coca Cola 3 Lt", "quantity": 1, "unit": "unidad", "price": 16000},
     ]
     
     # Add each menu item to the inventory

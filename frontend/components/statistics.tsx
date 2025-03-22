@@ -5,6 +5,7 @@ interface Stats {
   total_orders: number
   pending_orders: number
   complete_orders: number
+  total_sales: number
 }
 
 interface StatisticsProps {
@@ -25,12 +26,12 @@ export function Statistics({ stats }: StatisticsProps) {
       </Card>
       <Card className="shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Ingresos</CardTitle>
+          <CardTitle className="text-sm font-medium">Ventas del Día</CardTitle>
           <DollarSign className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatCOP(350500)}</div>
-          <p className="text-xs text-muted-foreground">+15% desde el mes pasado</p>
+          <div className="text-2xl font-bold">{formatCOP(stats.total_sales || 0)}</div>
+          <p className="text-xs text-muted-foreground">Pedidos completados</p>
         </CardContent>
       </Card>
       <Card className="shadow-sm">
