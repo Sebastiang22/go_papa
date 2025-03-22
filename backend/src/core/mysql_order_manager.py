@@ -285,6 +285,7 @@ class MySQLOrderManager:
                     (enum_order_table,)
                 )
                 orders_in_group = cursor.fetchall()
+                print("orders_in_group: ", orders_in_group)
                 
                 if not orders_in_group:
                     logging.warning("No se encontraron pedidos con enum_order_table: %s", enum_order_table)
@@ -302,7 +303,7 @@ class MySQLOrderManager:
                     "products": [],
                     "created_at": first_order.get("created_at").isoformat() if isinstance(first_order.get("created_at"), datetime) else first_order.get("created_at"),
                     "updated_at": latest_order.get("updated_at").isoformat() if isinstance(latest_order.get("updated_at"), datetime) else latest_order.get("updated_at"),
-                    "state": latest_order.get("state", "pendiente")
+                    "state": latest_order.get("state")
                 }
                 
                 # Agregar productos al pedido consolidado

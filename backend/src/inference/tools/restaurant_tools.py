@@ -161,3 +161,42 @@ async def get_order_status_tool(address: str, restaurant_id: str = "Macchiato") 
         f"order_info: {json.dumps(order_info, indent=4)}\033[0m"
     )
     return f"Pedido: {order_info}"
+
+async def send_menu_pdf_tool(user_id: str) -> str:
+    """
+    Envía el menú del restaurante como un archivo PDF al usuario.
+    
+    Parámetros:
+        user_id (str): Identificador del usuario (número de teléfono) al que menu.
+    
+    Retorna:
+        str: Mensaje de confirmación si el envío se realiza con éxito, o mensaje de error en caso contrario.
+    """
+    print(f"\033[92m\nsend_menu_pdf_tool activada\nuser_id: {user_id}\033[0m")
+    
+    try:
+        # Importamos aquí para evitar dependencias circulares
+        from cliente_whatsapp import ClienteWhatsApp
+        
+        # Creamos una instancia temporal del cliente de WhatsApp
+        cliente = ClienteWhatsApp()
+        
+        # Conectamos al servidor
+        conectado = await cliente.conectar()
+        if not conectado:
+            return "No se pudo conectar al servidor de WhatsApp para enviar el menú."
+        
+        # Enviamos el PDF
+        resultado = await cliente.enviar_pdf(user_id)
+        
+        # Desconectamos
+        await cliente.desconectar()
+        
+        if resultado:
+            return "El menú ha sido enviado como PDF a tu WhatsApp. ¡Revisa tus mensajes!"
+        else:
+            return "Lo siento, hubo un problema al enviar el menú como PDF. Por favor, intenta nuevamente más tarde."
+    
+    except Exception as e:
+        logging.exception("Error al enviar el menú como PDF: %s", e)
+        return f"Error al enviar el menú como PDF: {str(e)}"
