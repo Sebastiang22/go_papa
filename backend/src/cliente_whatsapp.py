@@ -174,6 +174,47 @@ class ClienteWhatsApp:
             print(f"[{self.get_timestamp()}] Error: {str(e)}")
             return False
 
+    async def enviar_pdf(self, numero: str) -> bool:
+        """Envía un archivo PDF al número especificado.
+        
+        Args:
+            numero (str): Número de teléfono al que se enviará el PDF.
+            
+        Returns:
+            bool: True si el envío fue exitoso, False en caso contrario.
+        """
+        if not self.esta_conectado:
+            print(f"[{self.get_timestamp()}] No hay conexión con el servidor")
+            return False
+
+        numero_formateado = self._format_phone_number(numero)
+        if not numero_formateado:
+            return False
+
+        print(f"[{self.get_timestamp()}] Enviando PDF del menú a {numero_formateado}...")
+        try:
+            await self.sio.emit('ping')
+            response = await asyncio.wait_for(
+                self.sio.call('send_pdf', {'number': numero_formateado}),
+                timeout=30.0
+            )
+            await self.sio.emit('ping')
+
+            if response and response.get('success'):
+                print(f"[{self.get_timestamp()}] PDF enviado exitosamente")
+                return True
+            else:
+                error = response.get('error') if response else 'Error desconocido'
+                print(f"[{self.get_timestamp()}] Error al enviar PDF: {error}")
+                return False
+
+        except asyncio.TimeoutError:
+            print(f"[{self.get_timestamp()}] Tiempo de espera agotado")
+            return False
+        except Exception as e:
+            print(f"[{self.get_timestamp()}] Error: {str(e)}")
+            return False
+
     def _format_phone_number(self, numero: str) -> Optional[str]:
         numero_formateado = numero.replace('+', '').replace(' ', '').replace('-', '')
         if not numero_formateado.isdigit() or len(numero_formateado) < 10:

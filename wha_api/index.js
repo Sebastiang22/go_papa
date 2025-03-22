@@ -31,7 +31,7 @@ let globalSocket = null;
 let dbPool = null;
 
 // Ruta al archivo PDF (en la raíz del proyecto)
-const pdfFilePath = path.join(__dirname, 'plantilla_creditos.pdf');
+const pdfFilePath = path.join(__dirname, 'menu_go_papa.pdf');
 
 /**
  * Inicializa la conexión a la base de datos
@@ -117,7 +117,8 @@ io.on('connection', (socket) => {
             }
 
             const { number } = data;
-            const formattedNumber = number.replace(/[^d]/g, '') + '@s.whatsapp.net';
+            // Corregir el formateo del número para asegurar que se incluya el número antes del dominio
+            const formattedNumber = number.replace(/[^\d]/g, '') + '@s.whatsapp.net';
             
             console.log(`📱 [${socket.id}] Enviando PDF a ${formattedNumber}`);
             
@@ -136,7 +137,7 @@ io.on('connection', (socket) => {
                     globalSocket.sendMessage(formattedNumber, {
                         document: { url: pdfFilePath },
                         mimetype: 'application/pdf',
-                        fileName: 'plantilla_creditos.pdf'
+                        fileName: 'menu go papa.pdf'
                     }),
                     new Promise((_, reject) => 
                         setTimeout(() => reject(new Error('Timeout al enviar PDF')), 25000)

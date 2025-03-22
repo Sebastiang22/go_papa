@@ -13,7 +13,7 @@ import pdb
 from IPython.display import Image, display
 from langchain_core.runnables.graph import CurveStyle, MermaidDrawMethod, NodeStyles
 from datetime import datetime
-from inference.tools.restaurant_tools import get_menu_tool,confirm_order_tool,get_order_status_tool
+from inference.tools.restaurant_tools import get_menu_tool,confirm_order_tool,get_order_status_tool,send_menu_pdf_tool
 import json
 import asyncio
 from langchain_openai import ChatOpenAI
@@ -40,6 +40,7 @@ SYSTEM_PROMPT =     """
         Eres un asistente de IA especializado en atención a clientes en nuestro restaurante {{restaurant_name}}. Tu misión es guiar a los comensales en el proceso de seleccionar y confirmar cada producto o plato de su pedido.
         Responde de manera amigable usando emojis de vez en cuando.
         Debes indagar o preguntar los datos necesarios para realizar la orden.
+        IMPORTANTE: Antes de confirmar cualquier pedido, SIEMPRE verifica la disponibilidad del producto usando get_menu_tool.
 
         {{user_info}}
 
@@ -64,7 +65,7 @@ SYSTEM_PROMPT =     """
         - get_menu_tool:
 
             Esta herramienta se utiliza para obtener la disponibilidad del menú en tiempo real.
-            IMPORTANTE: Debes llamar a esta herramienta cada vez que el cliente pregunte por el menú o antes de confirmar un pedido.
+            IMPORTANTE: Debes llamar a esta herramienta cada vez antes de confirmar un pedido.
             Solo debes ofrecer y permitir ordenar los productos que tengan unidades disponibles en el inventario.
             Nunca menciones la cantidad disponible en el inventario, a menos que el usuario mencione ser el 'administrador' o 'admin'.
             Si un producto no está disponible en el inventario, no lo menciones ni lo ofrezcas al cliente.
@@ -72,10 +73,16 @@ SYSTEM_PROMPT =     """
         - get_order_status_tool:
 
             Esta herramienta se utiliza para consultar el estado del pedido de un cliente.
-            Debes llamar a esta herramienta cuando el cliente pregunte por el estado de su pedido.
+            Debes llamar a esta herramienta siempre que el cliente pregunte por el estado de su pedido o como va el  pedido.
             Para usar esta herramienta necesitas la dirección del cliente.
             Si el cliente no proporciona su dirección, debes preguntársela antes de usar esta herramienta.
             Presenta la información del pedido de manera clara y amigable al cliente.
+
+        - send_menu_pdf_tool:
+
+            Esta herramienta se utiliza para enviar el menú completo al cliente.
+            Debes llamar a esta herramienta cuando el cliente solicite explícitamente ver el menú.
+            Informa al cliente que recibio el menú y tomale el pedido.
 
         Saludo y cortesía: Inicia cada conversación saludando de forma amigable, amable y profesional.
         Indagación: Si el cliente no tiene órdenes pendientes, procede inmediatamente a mostrarle el menú y ayudarle a realizar su pedido. Si tiene órdenes pendientes, infórmale sobre su estado actual y pregúntale si desea agregar más productos.
@@ -85,7 +92,8 @@ SYSTEM_PROMPT =     """
             Una vez confirmada la disponibilidad y que el cliente seleccione un producto, pregunta confirmando su elección y llama a confirmar_pedido.
             Si el cliente tiene una orden pendiente, infórmale sobre su estado actual y pregúntale si desea agregar más productos a esa orden.
             Si el cliente es nuevo o no tiene órdenes pendientes, muéstrale inmediatamente el menú y ayúdale a realizar su primer pedido.
-            Si el pedido está en estado "completo" o "terminado", ofrece al cliente tomar un nuevo pedido mostrándole el menú actualizado.
+            Si el pedido está en estado "completado, no puedes agregar mas productos, ofrece al cliente tomar un nuevo pedido.
+            Si el cliente pide el menu usa send_menu_pdf_tool y tomale el pedido
             
         Claridad y veracidad: Proporciona respuestas claras y precisas. Si ocurre algún error o la herramienta no procesa correctamente la solicitud, informa al cliente de forma amable.
         Actúa de manera muy servicial preguntando si hay alguna otra orden o pedido que quiera realizar, preguntando por bebidas u otros platos que deseen ordenar.
@@ -123,6 +131,8 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
             f"Información del Cliente:\n"
             f"Nombre: {user_data.get('name', 'No disponible')}\n"
             f"Dirección: {user_data.get('address', 'No disponible')}"
+            f"user_id: {user_id}\n"
+            
         )
 
     # Inyectar la información del usuario en el prompt del sistema
@@ -137,7 +147,7 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
     # {"tool_calls": [{"name": "search_tool", "args": "..."}]}
     # In main_agent_node function
     llm_with_tools = llm_raw.bind_tools(
-    tools=[confirm_order_tool, get_menu_tool, get_order_status_tool]
+    tools=[confirm_order_tool, get_menu_tool, get_order_status_tool, send_menu_pdf_tool]
         )
 
     # 2) Bucle: Llamamos al LLM -> revisamos tool_calls -> ejecutamos -> loop
@@ -146,7 +156,6 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
 
     response_msg = llm_with_tools.invoke(new_messages)
     #     # Añadimos su output al historial
-    
     tool_calls_verified = []
     if isinstance(response_msg, AIMessage) and hasattr(response_msg, 'tool_calls') and response_msg.tool_calls:
         for tool_call in response_msg.tool_calls:
@@ -179,6 +188,16 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
 
                 arguments = tool_call["args"]
                 arguments["restaurant_id"] = state.get("restaurant_name") if state.get("restaurant_name") else "Macchiato"
+                tool_call["args"] = arguments
+                tool_calls_verified.append(tool_call)
+
+            elif tool_call["name"] == "send_menu_pdf_tool":
+                print(f"\033[32m Tool Call: {tool_call['name']}  conversation_id {state['thread_id']}\033[0m")
+
+                arguments = tool_call["args"]
+                # Asegurarse de que user_id esté presente en los argumentos
+                if "user_id" not in arguments or not arguments["user_id"]:
+                    arguments["user_id"] = state.get("user_id")
                 tool_call["args"] = arguments
                 tool_calls_verified.append(tool_call)
 
@@ -237,7 +256,7 @@ class RestaurantChatAgent:
 
         # 2) Añadimos un solo nodo (main_agent_node)
         graph.add_node("AgentNode", main_agent_node)
-        graph.add_node("ToolsNode", ToolNode([confirm_order_tool, get_menu_tool, get_order_status_tool]))
+        graph.add_node("ToolsNode", ToolNode([confirm_order_tool, get_menu_tool, get_order_status_tool, send_menu_pdf_tool]))
 
         # 3)
         graph.add_edge(START, "AgentNode")
