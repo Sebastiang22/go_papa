@@ -18,7 +18,7 @@ class RequestHTTPChat(BaseModel):
     conversation_id: str
     conversation_name: str
     query: str
-    restaurant_name:Optional[Literal["Macchiato"]] = None
+    restaurant_name:Optional[Literal["go_papa"]] = None
 
 class RequestHTTPVote(BaseModel):
     id: str

@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Variables (ajusta según tu entorno)
-RESOURCE_GROUP="chatbot"
+RESOURCE_GROUP="chatbots"
 LOCATION="West US 2"
-STATIC_WEB_APP_NAME="TuStaticWebAppName"
+STATIC_WEB_APP_NAME="wa-gopapa"
 # Si estás en la carpeta frontend y usas Vue, el output por defecto es "dist"
 FRONTEND_ARTIFACT_LOCATION="dist"
 

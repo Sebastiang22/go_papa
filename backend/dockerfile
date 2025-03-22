@@ -1,35 +1,34 @@
+# Etapa de construcción
+FROM python:3.11-slim AS build
 
-# Imagen base de Python
-FROM python:3.9-slim
-
-# Directorio de trabajo en el contenedor
 WORKDIR /app
 
-# Copiamos primero requirements.txt para aprovechar la capa de cache
-COPY backend/src/requirements.txt /app/
+# Copiar los archivos necesarios
+COPY src/requirements.txt ./
 
-# Instalamos las dependencias
+# Instalar dependencias
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiamos el resto del código de la aplicación
-COPY backend/src/ /app/
+# Etapa final
+FROM python:3.11-slim AS production
 
-# Creamos un usuario sin privilegios y asignamos permisos
-RUN adduser --disabled-password --gecos '' myuser \
-    && chown -R myuser:myuser /app
+WORKDIR /app
 
-# Ajustamos las variables de entorno
+# Copiar el código del backend desde la carpeta src
+COPY src/ ./
+
+# Copiar las dependencias instaladas de la etapa anterior
+COPY --from=build /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=build /usr/local/bin /usr/local/bin
+
+# Configurar variables de entorno
 ENV PORT=8000
-EXPOSE 8000
+EXPOSE $PORT
 
-# Cambiamos al usuario sin privilegios
+# Crear usuario sin privilegios
+RUN adduser --disabled-password --gecos '' myuser
+RUN chown -R myuser:myuser /app
 USER myuser
 
-# Indicamos cómo arrancar la aplicación
-# Si "main_dev.py" es el script que lanza tu aplicación de FastAPI,
-# y este script arranca un servidor (por ejemplo Uvicorn) internamente,
-# puedes simplemente hacer:
-# CMD ["python", "main_dev.py"]
-
-# Si en cambio necesitas llamar uvicorn explícitamente:
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Ejecutar el backend
+CMD ["/usr/local/bin/uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

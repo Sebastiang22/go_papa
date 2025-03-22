@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # Variables
-RESOURCE_GROUP="Agents"
-LOCATION="eastus"
-REGISTRY_NAME="ACRAgentsGraphs"
-REGISTRY_LOGIN_SERVER="acragentsgraphs.azurecr.io"
+RESOURCE_GROUP="chatbots"
+LOCATION="West US 2 "
+REGISTRY_NAME="acragentess"
+REGISTRY_LOGIN_SERVER="acragentess.azurecr.io"
 IMAGE_VERSION=$(date +"%Y%m%d%H%M%S")
 IMAGE_NAME="agentsapp:$IMAGE_VERSION"
-CONTAINER_APP_NAME="caagentsbackend"
+CONTAINER_APP_NAME="gopapa-backend"
 
 # Login en ACR
 echo "Iniciando sesión en ACR..."

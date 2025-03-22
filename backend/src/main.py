@@ -24,10 +24,7 @@ app = FastAPI(title="TARS Agents Graphs", lifespan=lifespan)
 # "http://localhost:3001"
 # En producción, por ejemplo, si accedes mediante IP:
 # "http://198.244.188.104:3001"
-allowed_origins = [
-    "http://localhost:3001",
-    "http://198.244.188.104:3001",
-]
+allowed_origins = ["*"]
 
 # Configura CORS para permitir peticiones solo desde los orígenes especificados.
 app.add_middleware(

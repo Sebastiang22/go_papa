@@ -17,3 +17,4 @@ python-docx>=0.8.11
 pandas>=2.2.0
 python-socketio>=5.8.0
 aiohttp
+uvicorn

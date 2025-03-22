@@ -3,7 +3,7 @@ FROM node:16 AS build
 
 WORKDIR /app
 
-# Deshabilita la verificación estricta de SSL (opcional si hay problemas con certificados)
+# Deshabilita la verificación estricta de SSL (opcional)
 RUN npm config set strict-ssl false
 
 # Copia solo los archivos necesarios para instalar dependencias
@@ -15,20 +15,20 @@ RUN npm ci
 # Copia el resto de los archivos del proyecto
 COPY . ./
 
-# Construye el frontend
-RUN npm run build
+# Construye la aplicación y genera la versión estática
+RUN npm run build && npm run export
 
 # Etapa final: Servir con Nginx
 FROM nginx:stable-alpine AS production
 
-# Define el directorio de trabajo para Nginx
+# Directorio de trabajo para Nginx
 WORKDIR /usr/share/nginx/html
 
-# Copia la aplicación construida al servidor web
-COPY --from=build /app/dist ./
+# Copia la aplicación exportada (la carpeta por defecto es "out")
+COPY --from=build /app/out ./
 
 # Expone el puerto 80
 EXPOSE 80
 
 # Comando de inicio
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["nginx", "-g", "daemon off;"]

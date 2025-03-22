@@ -58,7 +58,7 @@ export default function Dashboard() {
       setError(null)
 
       // Llamada real a tu API
-      const response = await fetch("http://localhost:8000/orders/today", {
+      const response = await fetch("https://gopapa-backend.blueriver-8537145c.westus2.azurecontainerapps.io/orders/today", {
         method: "GET"
       })
       
@@ -112,7 +112,7 @@ export default function Dashboard() {
       console.log(`Actualizando pedido ${orderId} a estado: ${newStatus}`)
       
       // Llamada a la API para actualizar el estado
-      const response = await fetch("http://localhost:8000/orders/update_state", {
+      const response = await fetch("https://gopapa-backend.blueriver-8537145c.westus2.azurecontainerapps.io/orders/update_state", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
