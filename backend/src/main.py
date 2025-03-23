@@ -1,6 +1,6 @@
 # app/main.py
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.chat_agent import chat_agent_router
@@ -8,6 +8,7 @@ from api.orders import orders_router
 from api.inventory_router import inventory_router
 # from api import auth
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -18,6 +19,14 @@ async def lifespan(app: FastAPI):
     # Cleanup code (if needed) would go here
 
 app = FastAPI(title="TARS Agents Graphs", lifespan=lifespan)
+# Middleware para deshabilitar la caché
+@app.middleware("http")
+async def no_cache_middleware(request: Request, call_next):
+    response: Response = await call_next(request)
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 # Define los orígenes permitidos según donde se encuentre tu frontend.
 # En desarrollo podrías usar:

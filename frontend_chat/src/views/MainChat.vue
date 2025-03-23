@@ -36,7 +36,7 @@ const fetchCHAT = async (msg) => {
         "conversation_id": conversationId, // Siempre usa el mismo hasta que se borre el chat
         "conversation_name": "default",
         "query": String(msg),
-        "restaurant_name":"go-papa",
+        "restaurant_name":"go_papa",
         // "flag_modifier": false,
         // "model_name": "gpt-4o",
         // "search_tool": false

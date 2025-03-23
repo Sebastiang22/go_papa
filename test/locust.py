@@ -3,7 +3,7 @@ import uuid
 import logging
 class MessageUser(HttpUser):
     wait_time = between(1, 3)  # Tiempo de espera entre tareas simuladas
-    host = "https://gopapa-backend.blueriver-8537145c.westus2.azurecontainerapps.io"  # Cambia esta URL por la de tu API
+    host = "https://ca-gopapa-backend.blueriver-8537145c.westus2.azurecontainerapps.io"  # Cambia esta URL por la de tu API
 
     @task
     def test_message_endpoint(self):
@@ -31,4 +31,4 @@ class MessageUser(HttpUser):
 
 
 ## Test:
-# sh: locust -f locust.py --host=https://gopapa-backend.blueriver-8537145c.westus2.azurecontainerapps.io
+# sh: locust -f locust.py --host=https://ca-gopapa-backend.blueriver-8537145c.westus2.azurecontainerapps.io

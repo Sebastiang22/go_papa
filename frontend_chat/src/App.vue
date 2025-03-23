@@ -20,7 +20,7 @@ onMounted(async () => {
 
   const name = 'User Tars'//urlParams.get('name');
   const email = 'user_tars@outlook.com'//urlParams.get('email');
-  const client = `chatweb-${generateRandomHash()}`;
+  const client = `chat-web-${generateRandomHash()}`;
 
   setTimeout(() => {
       sharedState.id = client;
@@ -53,7 +53,7 @@ onMounted(async () => {
 
 //   } else {
 
-//     window.location.href = 'https://gopapa-backend.blueriver-8537145c.westus2.azurecontainerapps.io/api/auth/login';
+//     window.location.href = 'https://ca-gopapa-backend.blueriver-8537145c.westus2.azurecontainerapps.io/api/auth/login';
 //     // window.location.href = 'http://localhost:8000/api/auth/login';
 //   }
 });
