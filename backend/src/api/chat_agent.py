@@ -50,19 +50,19 @@ async def endpoint_message(request: RequestHTTPChat):
     )
     final_msg = new_state["messages"][-1]
     
-    # Enviar la respuesta al usuario vía WhatsApp
-    if request.user_id and final_msg.content:
-        try:
-            async with aiohttp.ClientSession() as session:
-                whatsapp_payload = {
-                    "number": request.user_id,
-                    "message": final_msg.content
-                }
-                async with session.post(f"{WHATSAPP_SERVER_URL}/api/send-message", json=whatsapp_payload) as response:
-                    whatsapp_response = await response.json()
-                    print(f"Respuesta de WhatsApp API: {whatsapp_response}")
-        except Exception as e:
-            print(f"Error al enviar mensaje a WhatsApp: {str(e)}")
+    # # Enviar la respuesta al usuario vía WhatsApp
+    # if request.user_id and final_msg.content:
+    #     try:
+    #         async with aiohttp.ClientSession() as session:
+    #             whatsapp_payload = {
+    #                 "number": request.user_id,
+    #                 "message": final_msg.content
+    #             }
+    #             async with session.post(f"{WHATSAPP_SERVER_URL}/api/send-message", json=whatsapp_payload) as response:
+    #                 whatsapp_response = await response.json()
+    #                 print(f"Respuesta de WhatsApp API: {whatsapp_response}")
+    #     except Exception as e:
+    #         print(f"Error al enviar mensaje a WhatsApp: {str(e)}")
     
     return {"id": message_id, "text": final_msg.content}
 

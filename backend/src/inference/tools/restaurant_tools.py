@@ -13,8 +13,9 @@ from core.config import settings
 from core.utils import genereta_id, generate_order_id
 from typing import List, Dict, Any
 from core.mysql_inventory_manager import MySQLInventoryManager
-
-
+from dotenv import load_dotenv
+import os
+load_dotenv(override=True)
 
 async def get_menu_tool(restaurant_name: str = "go_papa") -> List[Dict[str, Any]]:
     """
@@ -196,7 +197,8 @@ async def send_menu_pdf_tool(user_id: str) -> str:
         from cliente_whatsapp import ClienteWhatsApp
         
         # Creamos una instancia temporal del cliente de WhatsApp
-        cliente = ClienteWhatsApp()
+
+        cliente = ClienteWhatsApp(server_url= os.environ.get("SERVER_URL_WHA","http://localhost:3000"))
         
         # Conectamos al servidor
         conectado = await cliente.conectar()
