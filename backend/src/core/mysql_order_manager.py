@@ -68,7 +68,7 @@ class MySQLOrderManager:
                 address VARCHAR(255) NOT NULL,
                 user_name VARCHAR(255),
                 user_id VARCHAR(255),
-                restaurant_id VARCHAR(255) DEFAULT 'Macchiato',
+                restaurant_id VARCHAR(255) DEFAULT 'go_papa',
                 created_at DATETIME NOT NULL,
                 updated_at DATETIME NOT NULL,
                 INDEX (enum_order_table),

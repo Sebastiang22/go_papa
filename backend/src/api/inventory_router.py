@@ -36,7 +36,7 @@ async def add_product(request: AddProductRequest):
 
 
 @inventory_router.get("/inventory", response_model=List[Product])
-async def get_inventory(restaurant_id: Literal["Macchiato"] = None):
+async def get_inventory(restaurant_id: Literal["go_papa"] = None):
     """
     Ruta para obtener el inventario de un restaurante.
     Se debe pasar el restaurant_id como query parameter.
