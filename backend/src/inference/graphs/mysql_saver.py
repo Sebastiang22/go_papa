@@ -13,7 +13,7 @@ class MySQLSaver:
         """Initialize the MySQL connection and create table if it doesn't exist."""
         self.connection = None
         self._connect()
-        self._create_tables()
+        #self._create_tables()
     
     def _connect(self):
         """Establish connection to MySQL database using settings from config."""

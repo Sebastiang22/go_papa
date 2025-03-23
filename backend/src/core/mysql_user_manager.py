@@ -23,7 +23,7 @@ class MySQLUserManager:
         """
         self.connection = None
         self._connect()
-        self._create_tables()
+        #self._create_tables()
         logging.info(
             "Conexión a MySQL establecida para gestión de usuarios. Base de datos: '%s'",
             settings.db_database

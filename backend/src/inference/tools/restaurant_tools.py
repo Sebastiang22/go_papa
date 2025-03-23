@@ -14,8 +14,7 @@ from core.utils import genereta_id, generate_order_id
 from typing import List, Dict, Any
 from core.mysql_inventory_manager import MySQLInventoryManager
 
-# Crear una única instancia de MySQLOrderManager
-order_manager = MySQLOrderManager()
+
 
 async def get_menu_tool(restaurant_name: str = "Macchiato") -> List[Dict[str, Any]]:
     """
@@ -59,10 +58,11 @@ async def confirm_order_tool(
         Optional[str]: Mensaje de confirmación si el pedido se realiza con éxito, o None en caso de error.
     """
     order_id = genereta_id()
-
+    # Crear una única instancia de MySQLOrderManager
+    order_manager = MySQLOrderManager()
     # Obtener el último pedido usando address
     latest_order = await order_manager.get_latest_order()
-    print()  
+    txt_response = ""
      # Verificar si el usuario tiene órdenes pendientes
     last_order_user = await order_manager.get_pending_orders_by_user_id(user_id)
     #verifica si hay ordenes 
@@ -72,19 +72,23 @@ async def confirm_order_tool(
         if last_order_user :
             last_order_state = last_order_user['state']
             # Si el estado es 'pendiente' o 'enpreparacion', usar el mismo enum_order_table
-            if last_order_state in ['pendiente', 'enpreparacion']:
+            if last_order_state in ['pendiente', 'en preparacion']:
                 enum_order_table = int(last_order_user['enum_order_table'])
                 logging.info("Usuario tiene órdenes en proceso. Usando enum_order_table: %s", enum_order_table)
+                txt_response += "Usuario tiene órdenes en proceso. "
             else:
-                # Si el estado es 'terminado', incrementar el enum_order_table
+                # Si el estado es 'completado', incrementar el enum_order_table
                 enum_order_table = int(latest_order['enum_order_table']) + 1
-                logging.info("Último pedido terminado. Incrementando enum_order_table a: %s", enum_order_table)
+                logging.info("Último pedido completado. Incrementando enum_order_table a: %s", enum_order_table)
+                txt_response += "Último pedido completado. "
         else:
             # Si no hay órdenes pendientes, incrementar el enum_order_table
             enum_order_table = int(latest_order['enum_order_table']) + 1
             logging.info("No hay órdenes pendientes. Incrementando enum_order_table a: %s", enum_order_table)
+            txt_response += "No hay órdenes pendientes. "
     else:
         logging.info("No se encontró un pedido previo para la dirección: %s", address)
+        txt_response += "No se encontró un pedido previo para la dirección. "
         enum_order_table = 1
 
     state = "pendiente"
@@ -121,20 +125,31 @@ async def confirm_order_tool(
         
         created_order = await order_manager.create_order(order)
 
-        logging.info(f"Pedido creado: {created_order}")
+        if created_order:
+            txt_response = f"Pedido creado: {created_order}"
+            logging.info(f"Pedido creado: {created_order}")
         # Update user information if user_id is provided
         print(user_id)
         if user_id:
-            from core.mysql_user_manager import MySQLUserManager
-            user_manager = MySQLUserManager()
-            updated_user = await user_manager.update_user_by_id(str(user_id), name=user_name, address=address)
-            if updated_user:
-                logging.info("User information updated successfully: %s", updated_user)
-                print(f"respuesta_actualizacion{updated_user}")
-            else:
-                logging.warning("Failed to update user information for user_id: %s", user_id)
+            # Crear una tarea en segundo plano para actualizar la información del usuario
+            async def update_user_background():
+                try:
+                    from core.mysql_user_manager import MySQLUserManager
+                    user_manager = MySQLUserManager()
+                    updated_user = await user_manager.update_user_by_id(str(user_id), name=user_name, address=address)
+                    if updated_user:
+                        logging.info("User information updated successfully: %s", updated_user)
+                        print(f"respuesta_actualizacion{updated_user}")
+                    else:
+                        logging.warning("Failed to update user information for user_id: %s", user_id)
+                except Exception as e:
+                    logging.error(f"Error updating user information in background: {e}")
 
-        return "Pedido realizado con éxito"
+            # Crear la tarea sin esperar su finalización
+            import asyncio
+            asyncio.create_task(update_user_background())
+
+        return txt_response
 
     except Exception as e:
         logging.exception("Error al confirmar el pedido: %s", e)
@@ -151,6 +166,8 @@ async def get_order_status_tool(address: str, restaurant_id: str = "Macchiato") 
     Retorna:
         str: Información formateada del pedido o un mensaje informativo si no se encuentra.
     """
+    # Crear una única instancia de MySQLOrderManager
+    order_manager = MySQLOrderManager()
     order_info = await order_manager.get_order_status_by_address(address)
     if order_info is None:
         return f"No se encontró información del pedido para la dirección {address}."
