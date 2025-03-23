@@ -2,16 +2,16 @@ import axios from 'axios';
 import { sharedState } from './state'
 
 const apiClientMultipart = axios.create({
-  // baseURL: 'http://localhost:8000/api/chat',
-  baseURL: 'https://gopapa-backend.blueriver-8537145c.westus2.azurecontainerapps.io/api/chat',
+  // baseURL: 'http://localhost:8000/api/agent/chat',
+  baseURL: 'https://gopapa-backend.blueriver-8537145c.westus2.azurecontainerapps.io/api/agent/chat',
   //baseURL: '/api',
   headers: {
     'Content-Type': 'multipart/form-data',
   },
 });
 const apiClientCommon = axios.create({
-  // baseURL: 'http://localhost:8000/api/chat',
-  baseURL: 'https://gopapa-backend.blueriver-8537145c.westus2.azurecontainerapps.io/api/chat',
+  // baseURL: 'http://localhost:8000/api/agent/chat',
+  baseURL: 'https://gopapa-backend.blueriver-8537145c.westus2.azurecontainerapps.io/api/agent/chat',
   //baseURL: '/api',
   headers: {
     'Content-Type': 'application/json',

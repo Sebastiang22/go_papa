@@ -14,17 +14,22 @@ onMounted(async () => {
   ////               LOCAL
   //// +++++++++++++++++++++++++++++++++
   // // ESTO SIMULA LA AUTENTICACION
+  const generateRandomHash = () => {
+  return Math.random().toString(36).substring(2, 15);
+  }
+
   const name = 'User Tars'//urlParams.get('name');
   const email = 'user_tars@outlook.com'//urlParams.get('email');
+  const client = `chatweb-${generateRandomHash()}`;
+
   setTimeout(() => {
-      sharedState.id = email;
+      sharedState.id = client;
       sharedState.name = name;
       loaderMessage.value = 'Casi listo ...'
       setTimeout(() => {
           loading.value = false
         }, 2000)
       }, 1000)
-      
 
   ////  +++++++++++++++++++++++++++++++++
   ////                AZURE

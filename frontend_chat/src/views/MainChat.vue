@@ -32,13 +32,14 @@ const fetchCHAT = async (msg) => {
 
     let data = {
         "user_id": String(sharedState.id),
-        "message_id": messageId,
+        // "message_id": messageId,
         "conversation_id": conversationId, // Siempre usa el mismo hasta que se borre el chat
         "conversation_name": "default",
         "query": String(msg),
-        "flag_modifier": false,
-        "model_name": "gpt-4o",
-        "search_tool": false
+        "restaurant_name":"go-papa",
+        // "flag_modifier": false,
+        // "model_name": "gpt-4o",
+        // "search_tool": false
     };
 
     console.log("Enviando a la API:", data);
