@@ -1,26 +1,49 @@
 #!/bin/bash
 
-# Variables (ajusta según tu entorno)
+# Variables
 RESOURCE_GROUP="chatbots"
 LOCATION="West US 2"
-STATIC_WEB_APP_NAME="wa-gopapa"
-# Si estás en la carpeta frontend y usas Vue, el output por defecto es "dist"
-FRONTEND_ARTIFACT_LOCATION="dist"
+REGISTRY_NAME="acragentess"
+REGISTRY_LOGIN_SERVER="acragentess.azurecr.io"
+IMAGE_VERSION=$(date +"%Y%m%d%H%M%S")
+IMAGE_NAME="agentsfrontend:$IMAGE_VERSION"
+WEB_APP_NAME="aw-gopapa"
 
-echo "Iniciando el deploy de la Static Web App..."
+# Deploy
+echo "Iniciando el deploy..."
 
-# Opcional: Construir el frontend
-# npm install && npm run build
-
-# Desplegar la Static Web App usando la CLI de Azure
-az staticwebapp upload \
-  --name $STATIC_WEB_APP_NAME \
-  --resource-group $RESOURCE_GROUP \
-  --output-location $FRONTEND_ARTIFACT_LOCATION
-
+# Login en ACR
+echo "Iniciando sesión en ACR..."
+az acr login --name $REGISTRY_NAME
 if [ $? -ne 0 ]; then
-    echo "Error en el despliegue de la Static Web App."
+    echo "Error al iniciar sesión en ACR."
     exit 1
 fi
 
-echo "Deploy completado correctamente."
+# Build y push de la imagen Docker
+echo "Construyendo la imagen Docker..."
+docker build -t $REGISTRY_LOGIN_SERVER/$IMAGE_NAME .
+if [ $? -ne 0 ]; then
+    echo "Error al construir la imagen Docker."
+    exit 1
+fi
+
+echo "Empujando la imagen Docker a ACR..."
+docker push $REGISTRY_LOGIN_SERVER/$IMAGE_NAME
+if [ $? -ne 0 ]; then
+    echo "Error al empujar la imagen Docker a ACR."
+    exit 1
+fi
+echo "Imagen Docker empujada a ACR."
+
+# Despliegue de la aplicación
+echo "Desplegando la aplicación..."
+az deployment group create --resource-group $RESOURCE_GROUP --template-file infra/deploy/dp-WebApp-Container.bicep --parameters webAppName=$WEB_APP_NAME containerRegistryName=$REGISTRY_NAME imageName=$IMAGE_NAME
+if [ $? -ne 0 ]; then
+    echo "Error en el despliegue de la aplicación."
+    exit 1
+fi
+echo "Despliegue completado."
+
+echo "..."
+echo "Deploy completado correctamente"

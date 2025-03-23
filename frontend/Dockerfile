@@ -1,34 +1,44 @@
-# Etapa de construcción del frontend
-FROM node:16 AS build
+# Etapa 1: Construcción
+FROM node:18-alpine AS builder
 
+# Creamos y usamos el directorio de trabajo
 WORKDIR /app
 
-# Deshabilita la verificación estricta de SSL (opcional)
-RUN npm config set strict-ssl false
-
-# Copia solo los archivos necesarios para instalar dependencias
+# Copiamos los archivos que definen las dependencias
 COPY package.json package-lock.json ./
 
-# Instala las dependencias sin usar caché innecesario
-RUN npm ci
+# Instalamos dependencias
+RUN npm install
 
-# Copia el resto de los archivos del proyecto
-COPY . ./
+# Copiamos el resto del código
+COPY . .
 
-# Construye la aplicación y genera la versión estática
-RUN npm run build && npm run export
+# Construimos la aplicación de Next.js
+RUN npm run build
 
-# Etapa final: Servir con Nginx
-FROM nginx:stable-alpine AS production
 
-# Directorio de trabajo para Nginx
-WORKDIR /usr/share/nginx/html
+# Etapa 2: Imagen final para producción
+FROM node:18-alpine AS runner
 
-# Copia la aplicación exportada (la carpeta por defecto es "out")
-COPY --from=build /app/out ./
+# Directorio de trabajo
+WORKDIR /app
 
-# Expone el puerto 80
-EXPOSE 80
+# Copiamos los archivos esenciales desde la imagen builder
+COPY --from=builder /app/package.json /app/package-lock.json ./
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/next.config.mjs ./
+
+# Instalamos solo las dependencias de producción
+RUN npm install --production
+
+# Definimos la variable de entorno para producción
+ENV NODE_ENV=production
+ENV PATH /app/node_modules/.bin:$PATH
+
+# Exponemos el puerto por defecto de Next.js
+EXPOSE 3000
 
 # Comando de inicio
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["/usr/local/bin/node", "/app/node_modules/.bin/next", "start"]
+#
