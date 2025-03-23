@@ -25,7 +25,7 @@ class MySQLOrderManager:
         """
         self.connection = None
         self._connect()
-        self._create_tables()
+        #self._create_tables()
         logging.info(
             "Conexión a MySQL establecida. Base de datos: '%s'",
             settings.db_database
@@ -44,7 +44,7 @@ class MySQLOrderManager:
         except Error as err:
             print(f"Error: '{err}'")
     
-    def _create_tables(self):
+    def create_tables(self):
         """Crea las tablas necesarias si no existen."""
         if self.connection is None or not self.connection.is_connected():
             self._connect()
@@ -278,7 +278,7 @@ class MySQLOrderManager:
                 if not enum_order_table:
                     logging.info("El último pedido para la dirección %s no tiene 'enum_order_table'.", address)
                     return None
-                
+
                 # Consultar todos los pedidos que compartan el mismo 'enum_order_table'
                 cursor.execute(
                     "SELECT * FROM orders WHERE enum_order_table = %s ORDER BY created_at ASC", 
@@ -367,7 +367,7 @@ class MySQLOrderManager:
                 today = datetime.now().date()
                 today_start = datetime.combine(today, datetime.min.time())
                 today_end = datetime.combine(today, datetime.max.time())
-                
+
                 # Consultar todos los pedidos de hoy
                 cursor.execute("""
                     SELECT DISTINCT enum_order_table 

@@ -9,8 +9,7 @@ from core.schema_http import RequestHTTPUpdateState
 # Crear el router de órdenes con un prefijo y etiqueta
 orders_router = APIRouter()
 
-# Instanciar el MySQLOrderManager
-order_manager = MySQLOrderManager()
+
 
 @orders_router.get("/today", response_model=Dict[str, Any])
 async def get_today_orders_not_paid():
@@ -18,6 +17,8 @@ async def get_today_orders_not_paid():
     Retorna todos los pedidos creados el día actual (UTC) cuyo estado sea distinto de 'pagado',
     agrupando en el campo 'products' todos los productos que comparten el mismo 'enum_order_table'.
     """
+    # Instanciar el MySQLOrderManager
+    order_manager = MySQLOrderManager()
     orders = await order_manager.get_today_orders_not_paid()
     if not orders:
         raise HTTPException(status_code=404, detail="No se encontraron pedidos para hoy.")
@@ -28,6 +29,8 @@ async def get_latest_order_status(address: str):
     """
     Obtiene el estado del último pedido para una dirección específica.
     """
+    # Instanciar el MySQLOrderManager
+    order_manager = MySQLOrderManager()
     order = await order_manager.get_order_status_by_address(address)
     if not order:
         raise HTTPException(status_code=404, detail=f"No se encontró pedido para la dirección {address}.")
@@ -44,6 +47,8 @@ async def update_order_state(request: RequestHTTPUpdateState):
       - partition_key: (Opcional) Clave de partición.
     """
     try:
+# Instanciar el MySQLOrderManager
+        order_manager = MySQLOrderManager()        
         updated_order = await order_manager.update_order_status(
             enum_order_table=request.order_id,
             state=request.state,
@@ -72,6 +77,8 @@ async def delete_order(order_id: str, partition_key: Optional[str] = None):
       - order_id: ID del pedido.
       - partition_key: (Opcional) Clave de partición.
     """
+    # Instanciar el MySQLOrderManager
+    order_manager = MySQLOrderManager()
     success = await order_manager.delete_order(order_id, partition_key)
     if not success:
         raise HTTPException(
@@ -101,6 +108,8 @@ async def create_order(order: Dict[str, Any] = Body(...)):
         "user_id": "user123"
     }
     """
+    # Instanciar el MySQLOrderManager
+    order_manager = MySQLOrderManager()
     created_order = await order_manager.create_order(order)
     if created_order is None:
         raise HTTPException(status_code=500, detail="Error al crear el pedido.")
@@ -116,6 +125,8 @@ async def update_order_state_by_user(user_id: str = Query(...), state: str = Que
       - user_id: ID del usuario cuyos pedidos se actualizarán.
       - state: Nuevo estado (por ejemplo, "pendiente", "completado", etc.).
     """
+    # Instanciar el MySQLOrderManager
+    order_manager = MySQLOrderManager()
     updated_orders = await order_manager.update_order_status_by_user_id(user_id, state)
     if not updated_orders:
         raise HTTPException(
@@ -131,6 +142,8 @@ async def get_all_orders():
     Retorna todos los pedidos en la base de datos,
     agrupando en el campo 'products' todos los productos que comparten el mismo 'enum_order_table'.
     """
+    # Instanciar el MySQLOrderManager
+    order_manager = MySQLOrderManager()
     orders = await order_manager.get_all_orders()
     if not orders:
         raise HTTPException(status_code=404, detail="No se encontraron pedidos.")

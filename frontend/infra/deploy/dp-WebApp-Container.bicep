@@ -1,25 +1,33 @@
-param staticWebAppName string
-param location string = resourceGroup().location
-param skuName string = 'Free'
+param webAppName string
+param containerRegistryName string
+param imageName string
 
-resource staticSite 'Microsoft.Web/staticSites@2022-03-01' = {
-  name: staticWebAppName
-  location: location
-  sku: {
-    name: skuName
-    tier: skuName
-  }
+resource acr 'Microsoft.ContainerRegistry/registries@2021-06-01-preview' existing = {
+  name: containerRegistryName
+}
+
+resource webApp 'Microsoft.Web/sites@2021-02-01' existing = {
+  name: webAppName
+}
+
+resource webAppConfig 'Microsoft.Web/sites/config@2021-02-01' = {
+  parent: webApp
+  name: 'web'
   properties: {
-    // Si utilizas despliegue local (upload), estos valores pueden quedar vacíos.
-    repositoryUrl: ''
-    branch: ''
-    buildProperties: {
-      // Ubicación del código fuente (por ejemplo, la raíz si ya está compilado)
-      appLocation: '/'
-      // Si tienes un API integrado, indícalo; si no, déjalo vacío
-      apiLocation: ''
-      // Carpeta con los archivos compilados que serán servidos
-      appArtifactLocation: 'build'
-    }
+    appSettings: [
+      {
+        name: 'DOCKER_REGISTRY_SERVER_URL'
+        value: 'https://${acr.name}.azurecr.io'
+      }
+      {
+        name: 'DOCKER_REGISTRY_SERVER_USERNAME'
+        value: acr.listCredentials().username
+      }
+      {
+        name: 'DOCKER_REGISTRY_SERVER_PASSWORD'
+        value: acr.listCredentials().passwords[0].value
+      }
+    ]
+    linuxFxVersion: 'DOCKER|${acr.name}.azurecr.io/${imageName}'
   }
 }
