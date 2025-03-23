@@ -156,7 +156,7 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
         )
 
     # Inyectar la información del usuario en el prompt del sistema
-    system_prompt_with_user = SYSTEM_PROMPT.replace("{{fecha-hora}}", datetime.now().isoformat()).replace("{{user_info}}", user_info).replace("{{restaurant_name}}", state.get("restaurant_name", "Macchiato"))
+    system_prompt_with_user = SYSTEM_PROMPT.replace("{{fecha-hora}}", datetime.now().isoformat()).replace("{{user_info}}", user_info).replace("{{restaurant_name}}", state.get("restaurant_name", "go_papa"))
     system_msg = SystemMessage(content=system_prompt_with_user)
     new_messages = [system_msg] + state["messages"][-max_messages:]
 
@@ -185,12 +185,12 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
 
                 arguments = tool_call["args"]
                 # Ensure restaurant_name is always a valid value, not user input
-                if "restaurant_name" in arguments and not (arguments["restaurant_name"] == "Macchiato" or arguments["restaurant_name"] is None):
+                if "restaurant_name" in arguments and not (arguments["restaurant_name"] == "go_papa" or arguments["restaurant_name"] is None):
                     # If restaurant_name is not valid, use the default
-                    arguments["restaurant_name"] = state.get("restaurant_name") if state.get("restaurant_name") else "Macchiato"
+                    arguments["restaurant_name"] = state.get("restaurant_name") if state.get("restaurant_name") else "go_papa"
                 else:
                     # If restaurant_name is not in arguments, add it
-                    arguments["restaurant_name"] = state.get("restaurant_name") if state.get("restaurant_name") else "Macchiato"
+                    arguments["restaurant_name"] = state.get("restaurant_name") if state.get("restaurant_name") else "go_papa"
                 tool_call["args"] = arguments
                 tool_calls_verified.append(tool_call)
 
@@ -198,7 +198,7 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
                 print(f"\033[32m Tool Call: {tool_call['name']}  conversation_id {state['thread_id']}\033[0m")
 
                 arguments = tool_call["args"]
-                arguments["restaurant_id"] = state.get("restaurant_name") if state.get("restaurant_name") else "Macchiato"
+                arguments["restaurant_id"] = state.get("restaurant_name") if state.get("restaurant_name") else "go_papa"
                 arguments["user_id"] = state.get("user_id")
                 tool_call["args"] = arguments
                 tool_calls_verified.append(tool_call)
@@ -207,7 +207,7 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
                 print(f"\033[32m Tool Call: {tool_call['name']}  conversation_id {state['thread_id']}\033[0m")
 
                 arguments = tool_call["args"]
-                arguments["restaurant_id"] = state.get("restaurant_name") if state.get("restaurant_name") else "Macchiato"
+                arguments["restaurant_id"] = state.get("restaurant_name") if state.get("restaurant_name") else "go_papa"
                 tool_call["args"] = arguments
                 tool_calls_verified.append(tool_call)
 

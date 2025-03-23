@@ -16,7 +16,7 @@ from core.mysql_inventory_manager import MySQLInventoryManager
 
 
 
-async def get_menu_tool(restaurant_name: str = "Macchiato") -> List[Dict[str, Any]]:
+async def get_menu_tool(restaurant_name: str = "go_papa") -> List[Dict[str, Any]]:
     """
     Obtiene el menú del restaurante desde MySQL.
 
@@ -37,7 +37,7 @@ async def confirm_order_tool(
     price: float,
     user_name: Optional[str],
     details: Optional[str],
-    restaurant_id: str = "Macchiato",
+    restaurant_id: str = "go_papa",
     user_id: Optional[str] = None
     ) -> Optional[str]:
     """
@@ -51,7 +51,7 @@ async def confirm_order_tool(
         price (float): Precio del producto.
         user_name (Optional[str]): Nombre del usuario que realiza el pedido.
         details (Optional[str]): Detalles adicionales del pedido.
-        restaurant_id (str): Identificador del restaurante. Por defecto "Macchiato".
+        restaurant_id (str): Identificador del restaurante. Por defecto "go_papa".
         user_id (Optional[str]): Identificador del usuario que realiza el pedido.
 
     Retorna:
@@ -155,13 +155,13 @@ async def confirm_order_tool(
         logging.exception("Error al confirmar el pedido: %s", e)
         return None
 
-async def get_order_status_tool(address: str, restaurant_id: str = "Macchiato") -> str:
+async def get_order_status_tool(address: str, restaurant_id: str = "go_papa") -> str:
     """
     Consulta el estado del pedido consolidado para una dirección determinada.
     
     Parámetros:
         address (str): Dirección de entrega del pedido.
-        restaurant_id (str): Identificador del restaurante. Por defecto "Macchiato".
+        restaurant_id (str): Identificador del restaurante. Por defecto "go_papa".
     
     Retorna:
         str: Información formateada del pedido o un mensaje informativo si no se encuentra.
