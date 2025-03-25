@@ -7,7 +7,7 @@ REGISTRY_NAME="acragentess"
 REGISTRY_LOGIN_SERVER="acragentess.azurecr.io"
 IMAGE_VERSION=$(date +"%Y%m%d%H%M%S")
 IMAGE_NAME="agentsapp:$IMAGE_VERSION"
-CONTAINER_APP_NAME="gopapa-backend"
+CONTAINER_APP_NAME="ca-gopapa-backend"
 
 # Login en ACR
 echo "Iniciando sesión en ACR..."

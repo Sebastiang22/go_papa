@@ -17,6 +17,8 @@ from core.utils import extract_text_content,extract_word_content,extract_excel_c
 from inference.graphs.mysql_saver import MySQLSaver
 from core.mysql_order_manager import MySQLOrderManager
 # from enviar_mensaje import ClienteWhatsApp
+import aiohttp
+import os
 
 
 chat_agent_router = APIRouter()
@@ -26,6 +28,9 @@ chat_agent_router = APIRouter()
 mysql_db = MySQLSaver()
 orders_db = MySQLOrderManager()
 restaurant_chat_agent = RestaurantChatAgent()
+
+# URL del servidor de WhatsApp
+WHATSAPP_SERVER_URL = os.getenv('WHATSAPP_SERVER_URL', 'http://localhost:3000')
 
 @chat_agent_router.post("/message", response_model=ResponseHTTPChat)
 async def endpoint_message(request: RequestHTTPChat):
@@ -44,6 +49,21 @@ async def endpoint_message(request: RequestHTTPChat):
         restaurant_name=request.restaurant_name
     )
     final_msg = new_state["messages"][-1]
+    
+    # # Enviar la respuesta al usuario vía WhatsApp
+    # if request.user_id and final_msg.content:
+    #     try:
+    #         async with aiohttp.ClientSession() as session:
+    #             whatsapp_payload = {
+    #                 "number": request.user_id,
+    #                 "message": final_msg.content
+    #             }
+    #             async with session.post(f"{WHATSAPP_SERVER_URL}/api/send-message", json=whatsapp_payload) as response:
+    #                 whatsapp_response = await response.json()
+    #                 print(f"Respuesta de WhatsApp API: {whatsapp_response}")
+    #     except Exception as e:
+    #         print(f"Error al enviar mensaje a WhatsApp: {str(e)}")
+    
     return {"id": message_id, "text": final_msg.content}
 
 

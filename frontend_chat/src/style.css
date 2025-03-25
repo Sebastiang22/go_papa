@@ -1,0 +1,107 @@
+:root {
+  /* MODIFICAR - LOOK&FILL */
+
+  --main-color: #6b2329; 
+  --secundary-color: #0f265c;
+  /*************************/
+
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color: #213547;
+  background-color: #ffffff;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.main-color {
+  color: var(--main-color);
+}
+
+a {
+  font-weight: 500;
+  color: var(--main-color);
+  text-decoration: inherit;
+}
+a:hover {
+  color: var(--secundary-color);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+  height: calc(100vh - env(safe-area-inset-bottom));
+  background: url('/HeadTars.jpeg') no-repeat center center/cover;
+  /* background-color: #6b2329; */
+  overflow: hidden;
+  user-select: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+#app {
+  width: 550px;
+  max-width: 1200px;
+  height: 100%;
+  max-height: calc(100vh - 40px); 
+  display: flex;
+  flex-direction: column;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+button {
+  padding: 0;
+  margin: 0;
+  background: none;
+  cursor: pointer;
+  border: none;
+  transition: border-color 0.25s;
+}
+
+button:hover {
+  border-color: var(--secundary-color);
+}
+/* button:focus,
+button:focus-visible {
+  outline: 4px auto var(--secundary-color);
+} */
+input:focus,
+input:focus-visible {
+  outline: 4px auto var(--main-color);
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px; 
+}
+
+::-webkit-scrollbar-thumb {
+  background: #b99999;
+  border-radius: 10px;
+  border: 2px solid #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--main-color);
+}
