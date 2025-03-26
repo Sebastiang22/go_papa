@@ -1,12 +1,6 @@
-import os
-import sys
 import logging
 from mysql.connector import Error
 import mysql.connector
-
-# Add the parent directory to Python path
-src_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(src_path)
 
 from core.config import settings
 

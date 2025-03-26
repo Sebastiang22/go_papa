@@ -17,6 +17,18 @@ from inference.tools.restaurant_tools import get_menu_tool,confirm_order_tool,ge
 import json
 import asyncio
 from langchain_openai import ChatOpenAI
+import sys
+import asyncio
+
+# Si estamos en Python 3.11 o superior, parcheamos create_task para ignorar el argumento 'context'
+if sys.version_info >= (3, 11):
+    original_create_task = asyncio.create_task
+
+    def create_task_patch(coro, *, context=None, name=None):
+        # Ignoramos 'context' si se pasa, pero pasamos 'name'
+        return original_create_task(coro, name=name)
+
+    asyncio.create_task = create_task_patch
 
 ######################################################
 # 1) Estado del Bot (hereda messages)
