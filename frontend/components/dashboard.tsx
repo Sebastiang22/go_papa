@@ -51,16 +51,15 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+const API_URL = "https://af-gopapa.azurewebsites.net";
+
   // Función para cargar los datos
   const fetchData = async () => {
     try {
       setIsLoading(true)
       setError(null)
 
-      // Llamada real a tu API
-      const response = await fetch("https://ca-gopapa-backend.blueriver-8537145c.westus2.azurecontainerapps.io/orders/today", {
-        method: "GET"
-      })
+      const response = await fetch(`${API_URL}/orders/today`, { method: "GET" });
       
       if (response.status === 404) {
         // Caso especial: No hay pedidos para hoy
@@ -112,16 +111,14 @@ export default function Dashboard() {
       console.log(`Actualizando pedido ${orderId} a estado: ${newStatus}`)
       
       // Llamada a la API para actualizar el estado
-      const response = await fetch("https://ca-gopapa-backend.blueriver-8537145c.westus2.azurecontainerapps.io/orders/update_state", {
+      const response = await fetch(`${API_URL}/orders/update_state`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           order_id: orderId,
           state: newStatus
         }),
-      })
+      });
       
       if (!response.ok) {
         const errorData = await response.json()
