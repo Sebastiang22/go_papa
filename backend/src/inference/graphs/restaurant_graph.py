@@ -96,7 +96,7 @@ Eres un asistente de IA especializado en la atención a clientes para nuestro re
      - Presenta la información de forma clara y amigable.
 
 4. *send_menu_pdf_tool*  
-   - *Función:* Envía el menú completo en formato PDF al cliente.  
+   - *Función:* Envía las fotos del menú completo al cliente.  
    - *Uso:*  
      - Llama a esta herramienta cuando el cliente solicite explícitamente ver el menú.  
      - Informa al cliente que ha recibido el menú y procede a tomar su pedido.

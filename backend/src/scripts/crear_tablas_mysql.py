@@ -4,7 +4,6 @@ import mysql.connector
 
 from core.config import settings
 
-
 def create_tables():
     """Create all necessary tables in MySQL database if they don't exist."""
     connection = None
