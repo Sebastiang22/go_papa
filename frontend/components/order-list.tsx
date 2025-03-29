@@ -13,7 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, Search, Loader2, CheckCircle, Clock, Trash2 } from "lucide-react"
+import { ArrowUpDown, ChevronDown, Filter, Search, Loader2, CheckCircle, Clock, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -21,10 +21,13 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/status-badge"
 
 export type Product = {
   name: string
@@ -71,30 +74,48 @@ interface OrderListProps {
   onStatusUpdate: (orderId: string, newStatus: string) => void
   onDeleteOrder: (orderId: string) => void
   updatingOrderIds?: Set<string>
+  setUpdatingOrderIds?: (updater: (prev: Set<string>) => Set<string>) => void
 }
 
-export function OrderList({ orders, onSelectOrder, onStatusUpdate, onDeleteOrder, updatingOrderIds = new Set() }: OrderListProps) {
+export function OrderList({ orders, onSelectOrder, onStatusUpdate, onDeleteOrder, updatingOrderIds = new Set(), setUpdatingOrderIds }: OrderListProps) {
   const [sorting, setSorting] = useState<SortingState>([
     { id: "created_at", desc: true }
   ])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [searchTerm, setSearchTerm] = useState("")
+  const [statusFilter, setStatusFilter] = useState<string | null>(null)
+
+  // Función para manejar el cambio en el filtro de estado
+  const handleStatusFilterChange = (status: string | null) => {
+    setStatusFilter(status)
+    
+    if (status) {
+      // Aplicar filtro por estado
+      setColumnFilters(prev => {
+        // Eliminar filtro anterior de estado si existe
+        const filteredValues = prev.filter(filter => filter.id !== "state")
+        // Añadir nuevo filtro
+        return [...filteredValues, { id: "state", value: status }]
+      })
+    } else {
+      // Eliminar filtro por estado
+      setColumnFilters(prev => prev.filter(filter => filter.id !== "state"))
+    }
+  }
 
   const handleStatusUpdate = async (orderId: string, newStatus: string) => {
-    // Marcar el pedido como actualizando
-    setUpdatingOrderIds(prev => new Set(prev).add(orderId))
+    // Si se proporciona setUpdatingOrderIds, usarlo, de lo contrario no hacer nada con updatingOrderIds
+    setUpdatingOrderIds?.(prev => new Set(prev).add(orderId));
     
     try {
-      // Llamar a la función de actualización proporcionada por el componente padre
-      await onStatusUpdate(orderId, newStatus)
+      await onStatusUpdate(orderId, newStatus);
     } finally {
-      // Desmarcar el pedido como actualizando
-      setUpdatingOrderIds(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(orderId)
-        return newSet
-      })
+      setUpdatingOrderIds?.(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(orderId);
+        return newSet;
+      });
     }
   }
 
@@ -163,26 +184,70 @@ export function OrderList({ orders, onSelectOrder, onStatusUpdate, onDeleteOrder
     },
     {
       accessorKey: "state",
-      header: "Estado",
+      header: ({ column }) => (
+        <div className="flex items-center">
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            className="p-0 hover:bg-transparent"
+          >
+            Estado
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+          {/* Añadir menú de filtro por estado */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="ml-1 h-8 w-8">
+                <Filter className="h-4 w-4" />
+                {statusFilter && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary" />}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem 
+                onClick={() => handleStatusFilterChange(null)}
+                className={!statusFilter ? "bg-accent/50" : ""}
+              >
+                Todos
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={() => handleStatusFilterChange("pendiente")}
+                className={statusFilter === "pendiente" ? "bg-accent/50" : ""}
+              >
+                Pendientes
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => handleStatusFilterChange("en preparación")}
+                className={statusFilter === "en preparación" ? "bg-accent/50" : ""}
+              >
+                En preparación
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => handleStatusFilterChange("completado")}
+                className={statusFilter === "completado" ? "bg-accent/50" : ""}
+              >
+                Completados
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ),
       cell: ({ row }) => {
         const status = row.getValue("state") as string
-        const orderId = row.original.id
-        const isUpdating = updatingOrderIds.has(orderId)
         
-        const statusColors = {
-          pendiente: "bg-yellow-500",
-          "en preparación": "bg-blue-500",
-          completado: "bg-green-500",
+        if (updatingOrderIds.has(row.original.id)) {
+          return (
+            <div className="flex items-center">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <StatusBadge status={status} />
+            </div>
+          )
         }
-
-        return (
-          <div className="flex items-center">
-            {isUpdating && <Loader2 className="h-4 w-4 mr-2 animate-spin text-muted-foreground" />}
-            <Badge className={statusColors[status] || "bg-gray-500"}>
-              {status.charAt(0).toUpperCase() + status.slice(1)}
-            </Badge>
-          </div>
-        )
+        
+        return <StatusBadge status={status} />
+      },
+      filterFn: (row, id, value) => {
+        return row.getValue(id) === value
       },
     },
     {
@@ -244,13 +309,48 @@ export function OrderList({ orders, onSelectOrder, onStatusUpdate, onDeleteOrder
       sorting,
       columnFilters,
       columnVisibility,
+      globalFilter: searchTerm,
     },
     initialState: {
       pagination: {
         pageSize: 10,
       },
     },
+    enableGlobalFilter: true,
+    globalFilterFn: (row, id, filterValue) => {
+      const safeValue = (value: unknown): string => {
+        if (typeof value === 'string') return value.toLowerCase()
+        if (typeof value === 'number') return value.toString()
+        if (value === null || value === undefined) return ''
+        if (typeof value === 'object') {
+          // Manejar caso específico de products
+          if (Array.isArray(value) && id === 'products') {
+            return value.map(product => product.name).join(' ').toLowerCase()
+          }
+          return JSON.stringify(value).toLowerCase()
+        }
+        return String(value).toLowerCase()
+      }
+      
+      const searchValue = filterValue.toLowerCase()
+      const customerName = safeValue(row.getValue('customer_name'))
+      const tableId = safeValue(row.getValue('table_id'))
+      const products = row.getValue('products') as Product[]
+      const productsText = products
+        .map(p => `${p.name} ${p.observations || ''}`)
+        .join(' ')
+        .toLowerCase()
+      
+      return customerName.includes(searchValue) || 
+             tableId.includes(searchValue) || 
+             productsText.includes(searchValue)
+    },
   })
+
+  // Indicador de filtro activo
+  const activeFiltersCount = 
+    (statusFilter ? 1 : 0) + 
+    (searchTerm ? 1 : 0)
 
   return (
     <div>
@@ -264,30 +364,53 @@ export function OrderList({ orders, onSelectOrder, onStatusUpdate, onDeleteOrder
             className="pl-9 w-full"
           />
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="ml-auto">
-              Columnas <ChevronDown className="ml-2 h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {table
-              .getAllColumns()
-              .filter((column) => column.getCanHide())
-              .map((column) => {
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    className="capitalize"
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                  >
-                    {column.id}
-                  </DropdownMenuCheckboxItem>
-                )
-              })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        
+        <div className="flex items-center gap-2">
+          {/* Mostrar indicador de filtros activos */}
+          {activeFiltersCount > 0 && (
+            <Badge variant="outline" className="flex items-center gap-1">
+              <span>Filtros activos: {activeFiltersCount}</span>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-4 w-4 p-0 hover:bg-transparent"
+                onClick={() => {
+                  setSearchTerm('')
+                  setStatusFilter(null)
+                  setColumnFilters([])
+                }}
+              >
+                <span className="sr-only">Limpiar filtros</span>
+                ✕
+              </Button>
+            </Badge>
+          )}
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="ml-auto">
+                Columnas <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {table
+                .getAllColumns()
+                .filter((column) => column.getCanHide())
+                .map((column) => {
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={column.id}
+                      className="capitalize"
+                      checked={column.getIsVisible()}
+                      onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                    >
+                      {column.id}
+                    </DropdownMenuCheckboxItem>
+                  )
+                })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
       <div className="rounded-md border overflow-x-auto">
         <Table>

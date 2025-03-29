@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { MoonIcon, SunIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useToast } from "@/components/ui/use-toast"
@@ -54,6 +54,7 @@ export default function Dashboard() {
   const [updatingOrderIds, setUpdatingOrderIds] = useState<Set<string>>(new Set())
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false)
   const [pendingDeleteOrderId, setPendingDeleteOrderId] = useState<string | null>(null)
+  const selectedOrderRef = useRef<string | null>(null)
 
   const API_URL = "http://127.0.0.1:8000";
 
@@ -62,92 +63,104 @@ export default function Dashboard() {
     try {
       setIsLoading(true)
       setError(null)
-
-      const response = await fetch(`${API_URL}/orders/today`, { method: "GET" });
       
-      if (response.status === 404) {
-        // Caso especial: No hay pedidos para hoy
-        setBackendData({
-          stats: {
-            total_orders: 0,
-            pending_orders: 0,
-            complete_orders: 0,
-            total_sales: 0
-          },
-          orders: []
-        })
-        return
-      }
-      
+      // Obtener datos del backend
+      const response = await fetch(`${API_URL}/orders/today`);
       if (!response.ok) {
-        throw new Error(`Error: ${response.status}`)
+        throw new Error(`Error al obtener datos: ${response.statusText}`);
       }
       
-      const data: BackendData = await response.json()
-      console.log("Datos recibidos del backend:", data)
-      setBackendData(data)
+      const data = await response.json();
       
-      // También actualizamos el pedido seleccionado si existe
-      if (selectedOrder) {
-        const updatedOrder = data.orders.find(order => order.id === selectedOrder.id);
-        if (updatedOrder) {
-          setSelectedOrder(updatedOrder);
+      // Si hay un pedido seleccionado y el modal está abierto, preserva ese pedido
+      if (selectedOrderRef.current && isModalOpen) {
+        const currentSelectedOrderId = selectedOrderRef.current;
+        const updatedSelectedOrder = data.orders.find((order: Order) => order.id === currentSelectedOrderId);
+        
+        // Si el pedido seleccionado todavía existe en los datos actualizados, actualízalo
+        if (updatedSelectedOrder) {
+          setSelectedOrder(updatedSelectedOrder);
         }
+        // Si no existe, no cambies el pedido seleccionado hasta que el usuario cierre el modal
       }
-    } catch (err) {
-      console.error("Error fetching data:", err)
-      setError("Error al cargar los datos. Por favor, intente nuevamente.")
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudieron cargar los pedidos. Por favor, intente nuevamente.",
-      })
+      
+      setBackendData(data);
+    } catch (error) {
+      console.error("Error al obtener datos:", error);
+      setError("No se pudieron cargar los datos. Por favor, intenta de nuevo más tarde.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [API_URL, toast, selectedOrder])
-
-  // Cargar datos iniciales y configurar actualización periódica
+  }, [API_URL, isModalOpen, selectedOrderRef]);
+  
+  // Manejar la selección de un pedido
+  const handleSelectOrder = useCallback((order: Order) => {
+    setSelectedOrder(order);
+    selectedOrderRef.current = order.id;
+    setIsModalOpen(true);
+  }, []);
+  
+  // Cuando el modal se cierra, limpia la referencia
   useEffect(() => {
-    fetchData()
-    
-    // Configurar intervalo para actualización automática cada 30 segundos
-    const intervalId = setInterval(fetchData, 30000)
-    
-    // Limpieza al desmontar
-    return () => clearInterval(intervalId)
-  }, [fetchData])
-
-  const handleSelectOrder = (order: Order) => {
-    setSelectedOrder(order)
-    setIsModalOpen(true)
-  }
-
-  const handleStatusUpdate = async (orderId: string, newStatus: string) => {
+    if (!isModalOpen) {
+      selectedOrderRef.current = null;
+    }
+  }, [isModalOpen]);
+  
+  // Manejar la actualización de estado de un pedido
+  const handleStatusUpdate = useCallback(async (orderId: string, newStatus: string) => {
     try {
       // Marcar como actualizando
       setUpdatingOrderIds(prev => {
-        const newSet = new Set(prev)
-        newSet.add(orderId)
-        return newSet
-      })
+        const newSet = new Set(prev);
+        newSet.add(orderId);
+        return newSet;
+      });
       
-      console.log(`Actualizando pedido ${orderId} a estado: ${newStatus}`)
+      console.log(`Actualizando pedido ${orderId} a estado: ${newStatus}`);
+
+      // Guardar el estado anterior para poder revertir en caso de error
+      let previousState = "";
       
       // Actualización optimista de la UI
       if (backendData) {
-        const updatedOrders = backendData.orders.map(order => 
-          order.id === orderId ? { ...order, state: newStatus } : order
-        );
+        const updatedOrders = backendData.orders.map(order => {
+          if (order.id === orderId) {
+            previousState = order.state;
+            return { ...order, state: newStatus };
+          }
+          return order;
+        });
         
-        setBackendData(prev => prev ? {
-          ...prev,
-          orders: updatedOrders
-        } : null);
+        // Actualizar los datos del backend en el estado
+        setBackendData(prev => {
+          if (!prev) return null;
+          
+          // Calcular nuevas estadísticas basadas en el cambio de estado
+          const statsUpdate = { ...prev.stats };
+          
+          // Si el estado cambia de pendiente a completado
+          if (previousState === 'pendiente' && newStatus === 'completado') {
+            statsUpdate.pending_orders -= 1;
+            statsUpdate.complete_orders += 1;
+          } 
+          // Si el estado cambia de completado a pendiente
+          else if (previousState === 'completado' && newStatus === 'pendiente') {
+            statsUpdate.pending_orders += 1;
+            statsUpdate.complete_orders -= 1;
+          }
+          
+          return {
+            ...prev,
+            orders: updatedOrders,
+            stats: statsUpdate
+          };
+        });
         
-        // Actualizar el pedido seleccionado si es el que estamos modificando
+        // Si el modal está abierto y el pedido actualizado es el que se está viendo,
+        // actualiza el pedido seleccionado con el nuevo estado
         if (selectedOrder && selectedOrder.id === orderId) {
-          setSelectedOrder({ ...selectedOrder, state: newStatus });
+          setSelectedOrder(prev => prev ? { ...prev, state: newStatus } : null);
         }
       }
       
@@ -162,42 +175,39 @@ export default function Dashboard() {
       });
       
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.detail || `Error: ${response.status}`)
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `Error: ${response.status}`);
       }
       
-      const updatedOrder = await response.json()
-      console.log("Respuesta del servidor:", updatedOrder)
+      // No recargar todos los datos, mantener la actualización optimista
+      // que ya hicimos anteriormente
       
       // Mostrar notificación de éxito
       toast({
         title: "Estado actualizado",
         description: `El pedido ha sido marcado como "${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}"`,
         variant: "default",
-      })
-      
-      // Recargar los datos para asegurarnos de tener información actualizada
-      await fetchData()
+      });
       
     } catch (err) {
-      console.error("Error updating order status:", err)
+      console.error("Error updating order status:", err);
       toast({
         variant: "destructive",
         title: "Error",
-        description: err instanceof Error ? err.message : "No se pudo actualizar el estado del pedido.",
-      })
+        description: err instanceof Error ? err.message : "No se pudo actualizar el estado.",
+      });
       
-      // Recargar datos en caso de error para revertir cambios optimistas incorrectos
-      await fetchData()
+      // Recargar los datos para revertir cualquier cambio optimista incorrecto
+      await fetchData();
     } finally {
       // Quitar la marca de actualización
       setUpdatingOrderIds(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(orderId)
-        return newSet
-      })
+        const newSet = new Set(prev);
+        newSet.delete(orderId);
+        return newSet;
+      });
     }
-  }
+  }, [API_URL, backendData, selectedOrder, toast, fetchData]);
 
   // Actualizar la función handleDeleteOrder
   const handleDeleteOrder = async (orderId: string) => {
@@ -287,6 +297,20 @@ export default function Dashboard() {
       setPendingDeleteOrderId(null)
     }
   }
+
+  // Configurar intervalo de actualización
+  useEffect(() => {
+    fetchData();
+    
+    const intervalId = setInterval(() => {
+      // Solo actualizar los datos si el modal no está abierto
+      if (!isModalOpen) {
+        fetchData();
+      }
+    }, 10000); // Actualizar cada 10 segundos
+    
+    return () => clearInterval(intervalId);
+  }, [fetchData, isModalOpen]);
 
   if (error) {
     return (
