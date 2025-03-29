@@ -234,12 +234,12 @@ async function connectToWhatsApp() {
         }
     });
 
-    // Guardar credenciales
+    // Guardar credenciales 
     sock.ev.on('creds.update', saveCreds);
 }
 
 // Iniciar servidor
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 server.listen(PORT, async () => {
     console.log(`🚀 Servidor WhatsApp escuchando en http://localhost:${PORT}`);
     

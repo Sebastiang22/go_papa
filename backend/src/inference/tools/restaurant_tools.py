@@ -182,10 +182,10 @@ async def get_order_status_tool(address: str, restaurant_id: str = "go_papa") ->
 
 async def send_menu_pdf_tool(user_id: str) -> str:
     """
-    Envía el menú del restaurante como un archivo PDF al usuario.
+    Envía las imágenes del menú del restaurante al usuario.
     
     Parámetros:
-        user_id (str): Identificador del usuario (número de teléfono) al que menu.
+        user_id (str): Identificador del usuario (número de teléfono) al que se enviarán las imágenes.
     
     Retorna:
         str: Mensaje de confirmación si el envío se realiza con éxito, o mensaje de error en caso contrario.
@@ -193,29 +193,25 @@ async def send_menu_pdf_tool(user_id: str) -> str:
     print(f"\033[92m\nsend_menu_pdf_tool activada\nuser_id: {user_id}\033[0m")
     
     try:
-        # Importamos aquí para evitar dependencias circulares
-        from cliente_whatsapp import ClienteWhatsApp
+        import requests
         
-        # Creamos una instancia temporal del cliente de WhatsApp
-
-        cliente = ClienteWhatsApp(server_url= os.environ.get("SERVER_URL_WHA","http://localhost:3000"))
+        whatsapp_api_url = "http://localhost:3001/api/send-images"
         
-        # Conectamos al servidor
-        conectado = await cliente.conectar()
-        if not conectado:
-            return "No se pudo conectar al servidor de WhatsApp para enviar el menú."
+        # Preparar los datos para la solicitud
+        payload = {
+            "phone": user_id  # Cambiado de "number" a "phone" para coincidir con la API
+        }
         
-        # Enviamos el PDF
-        resultado = await cliente.enviar_pdf(user_id)
+        # Realizar la solicitud POST al servicio de WhatsApp
+        response = requests.post(whatsapp_api_url, json=payload)
         
-        # Desconectamos
-        await cliente.desconectar()
-        
-        if resultado:
-            return "El menú ha sido enviado como PDF a tu WhatsApp. ¡Revisa tus mensajes!"
+        # Verificar la respuesta
+        if response.status_code == 200:
+            return f"Las imágenes del menú han sido enviadas exitosamente al número {user_id}."
         else:
-            return "Lo siento, hubo un problema al enviar el menú como PDF. Por favor, intenta nuevamente más tarde."
+            error_msg = response.json().get("message", "Error desconocido")
+            return f"No se pudo enviar el menú: {error_msg}"
     
     except Exception as e:
-        logging.exception("Error al enviar el menú como PDF: %s", e)
-        return f"Error al enviar el menú como PDF: {str(e)}"
+        logging.exception("Error al enviar las imágenes del menú: %s", e)
+        return f"Error al enviar las imágenes del menú: {str(e)}"

@@ -14,12 +14,12 @@ app.use(cors());
 app.use(express.json());
 
 // Crear servidor HTTP y configurar Socket.IO
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 let globalSocket = null;
-const pdfFilePath = path.join(__dirname, 'menu_go_papa.pdf');
+const pdfFilePath = path.join(__dirname, 'MenuGopapa.pdf');
 
 // Array global para almacenar mensajes entrantes (opcional)
 let newMessages = [];
@@ -103,7 +103,7 @@ async function connectToWhatsApp() {
             // Realizar la solicitud POST a http://localhost:8000/api/agent/chat/message
             try {
                 // const response = await axios.post('http://localhost:8000/api/agent/chat/message', payload);
-                const response = await axios.post('https://ca-gopapa-backend.blueriver-8537145c.westus2.azurecontainerapps.io/api/agent/chat/message', payload);
+                const response = await axios.post('http://127.0.0.1:8000/agent/chat/message', payload);
                 console.log('✅ Respuesta de API agent/chat/message:', response.data);
                 // Asumimos que la respuesta contiene un campo 'text' con la respuesta a enviar
                 const replyText = (response.data.text || 'Estamos experimentando problemas, por favor intente más tarde').replace(/\*\*/g, '*');
@@ -116,64 +116,6 @@ async function connectToWhatsApp() {
         }
     });
 }
-
-/**
- * Manejo de conexiones Socket.IO
- */
-io.on('connection', (socket) => {
-    console.log(`🔌 Cliente conectado a Socket.IO: ${socket.id}`);
-
-    // Evento para enviar PDF vía socket, manteniendo la misma lógica original
-    socket.on('send_pdf', async (data, callback) => {
-        console.log(`📤 [${socket.id}] Intento de envío de PDF:`, data);
-        try {
-            if (!globalSocket) {
-                console.error(`❌ [${socket.id}] WhatsApp no está conectado`);
-                callback({ success: false, error: 'WhatsApp no está conectado' });
-                return;
-            }
-
-            const { number } = data;
-            // Formatear el número para incluir el dominio de WhatsApp
-            const formattedNumber = number.replace(/[^\d]/g, '') + '@s.whatsapp.net';
-            console.log(`📱 [${socket.id}] Enviando PDF a ${formattedNumber}`);
-
-            // Verificar si el archivo PDF existe
-            if (!fs.existsSync(pdfFilePath)) {
-                console.error(`❌ [${socket.id}] El archivo PDF no existe en la ruta: ${pdfFilePath}`);
-                callback({ success: false, error: 'El archivo PDF no existe' });
-                return;
-            }
-
-            // Enviar un "ping" para mantener la conexión (emulado con socket.emit)
-            socket.emit('keep_alive');
-
-            try {
-                await Promise.race([
-                    globalSocket.sendMessage(formattedNumber, {
-                        document: { url: pdfFilePath },
-                        mimetype: 'application/pdf',
-                        fileName: 'menu go papa.pdf'
-                    }),
-                    new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('Timeout al enviar PDF')), 25000)
-                    )
-                ]);
-
-                console.log(`✅ [${socket.id}] PDF enviado correctamente`);
-                // Enviar otro "ping" después del envío
-                socket.emit('keep_alive');
-                callback({ success: true, message: 'PDF enviado correctamente' });
-            } catch (error) {
-                console.error(`❌ [${socket.id}] Error al enviar PDF:`, error);
-                callback({ success: false, error: error.message || 'Error al enviar PDF' });
-            }
-        } catch (error) {
-            console.error(`❌ [${socket.id}] Error general:`, error);
-            callback({ success: false, error: error.message || 'Error general al procesar el envío de PDF' });
-        }
-    });
-});
 
 /**
  * Endpoint para enviar mensaje de texto vía WhatsApp
@@ -202,6 +144,83 @@ app.post('/api/send-message', async (req, res) => {
         }
     } catch (error) {
         return res.status(500).json({ success: false, error: error.message || 'Error general' });
+    }
+});
+
+/**
+ * Envía las 5 imágenes de la carpeta @common al número proporcionado
+ * @param {Object} req - Objeto de solicitud HTTP
+ * @param {Object} res - Objeto de respuesta HTTP
+ */
+app.post('/api/send-images', async (req, res) => {
+    try {
+        const { phone } = req.body;
+        
+        if (!phone) {
+            return res.status(400).json({ 
+                status: false, 
+                message: 'El número de teléfono es obligatorio' 
+            });
+        }
+        
+        // Ruta a la carpeta @common
+        const commonFolderPath = path.join(__dirname, 'common');
+        
+        // Verificar si la carpeta existe
+        if (!fs.existsSync(commonFolderPath)) {
+            return res.status(404).json({ 
+                status: false, 
+                message: 'La carpeta common no existe' 
+            });
+        }
+        
+        // Obtener todas las imágenes de la carpeta
+        const files = fs.readdirSync(commonFolderPath)
+            .filter(file => {
+                const ext = path.extname(file).toLowerCase();
+                return ['.jpg', '.jpeg', '.png', '.gif'].includes(ext);
+            });
+        
+        // Verificar si hay imágenes
+        if (files.length === 0) {
+            return res.status(404).json({ 
+                status: false, 
+                message: 'No se encontraron imágenes en la carpeta common' 
+            });
+        }
+        
+        // Limitar a 5 imágenes
+        const imagesToSend = files.slice(0, 5);
+        const results = [];
+        
+        // Enviar cada imagen
+        for (const file of imagesToSend) {
+            const filePath = path.join(commonFolderPath, file);
+            const result = await globalSocket.sendMessage(phone + '@c.us', {
+                image: { url: filePath },
+                caption: '' // Quitado el mensaje con el nombre del archivo
+            });
+            results.push(result);
+            
+            // Pequeña pausa entre envíos para evitar problemas
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        res.status(200).json({
+            status: true,
+            message: `Se enviaron ${imagesToSend.length} imágenes correctamente`,
+            data: {
+                images_sent: imagesToSend,
+                results: results
+            }
+        });
+    } catch (error) {
+        console.error('Error al enviar imágenes:', error);
+        res.status(500).json({
+            status: false,
+            message: 'Error al enviar imágenes',
+            error: error.message
+        });
     }
 });
 
