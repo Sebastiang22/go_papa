@@ -6,15 +6,27 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.chat_agent import chat_agent_router
 from api.orders import orders_router
 from api.inventory_router import inventory_router
+from core.db_pool import DBConnectionPool
 
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
+import logging
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for FastAPI application startup and shutdown events."""
-    print("Aplicación iniciada")
+    logging.info("Iniciando aplicación y configurando pool de conexiones a MySQL...")
+    # Inicializar el pool de conexiones al iniciar la aplicación
+    db_pool = DBConnectionPool()
+    await db_pool.get_pool()
+    logging.info("Pool de conexiones a MySQL inicializado correctamente")
+    
     yield
+    
+    # Cerrar el pool de conexiones al finalizar la aplicación
+    logging.info("Cerrando pool de conexiones a MySQL...")
+    await db_pool.close()
+    logging.info("Aplicación finalizada correctamente")
 
 app = FastAPI(title="TARS Agents Graphs", lifespan=lifespan, root_path="/api")
 

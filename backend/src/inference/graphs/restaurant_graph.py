@@ -4,7 +4,7 @@ from pydantic import SecretStr
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage, ToolMessage, AnyMessage
 from langgraph.graph import StateGraph, START, MessagesState, END
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
-from langgraph.prebuilt import  ToolNode
+from langgraph.prebuilt import ToolNode
 
 from core.config import settings
 from inference.graphs.mysql_saver import MySQLSaver
@@ -77,8 +77,8 @@ Eres un asistente de IA especializado en la atención a clientes para nuestro re
    - *Consideraciones adicionales:*  
      - Si se detecta que ya se realizó un pedido idéntico o con el mismo mensaje, pregunta al cliente si desea repetirlo (podría tratarse de un error).  
      - *Salchipapas en el menú:*  
-       - Pueden ser del tipo “<nombre salchipapa> x2” o “<nombre salchipapa> familiar”.  
-       - Si el cliente solicita una salchipapa “x2”, por defecto registra la cantidad como 1, a menos que el cliente especifique explícitamente que quiere dos unidades.  
+       - Pueden ser del tipo "<nombre salchipapa> x2" o "<nombre salchipapa> familiar".  
+       - Si el cliente solicita una salchipapa "x2", por defecto registra la cantidad como 1, a menos que el cliente especifique explícitamente que quiere dos unidades.  
 
 
 2. *get_menu_tool*  
@@ -129,8 +129,8 @@ Eres un asistente de IA especializado en la atención a clientes para nuestro re
 
 ### Notas Adicionales
 
-- *Consistencia:* Asegúrate de usar términos y nombres de herramientas de forma consistente (por ejemplo, “confirm_order_tool” en lugar de “confirmar_pedido”).  
-- *Interacción Amigable:* Aprovecha el uso de emojis y un lenguaje cercano para mejorar la experiencia del cliente.
+- *Consistencia:* Asegúrate de usar términos y nombres de herramientas de forma consistente (por ejemplo, "confirm_order_tool" en lugar de "confirmar_pedido").  
+- *Interacción Amigable:* Aprovecha el uso de emojis y un lenguaje cercano para mejorar la experiencia del cliente.
         
         """
 
@@ -182,12 +182,10 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
     tools=[confirm_order_tool, get_menu_tool, get_order_status_tool, send_menu_pdf_tool]
         )
 
-    # 2) Bucle: Llamamos al LLM -> revisamos tool_calls -> ejecutamos -> loop
-    # while True:
-    #     # Llamado sincrónico al LLM
-
-    response_msg = llm_with_tools.invoke(new_messages)
-    #     # Añadimos su output al historial
+    # 2) Usar ainvoke en lugar de invoke para un procesamiento verdaderamente asíncrono
+    response_msg = await llm_with_tools.ainvoke(new_messages)
+    
+    # Verificar y procesar llamadas a herramientas
     tool_calls_verified = []
     if isinstance(response_msg, AIMessage) and hasattr(response_msg, 'tool_calls') and response_msg.tool_calls:
         for tool_call in response_msg.tool_calls:
@@ -288,7 +286,8 @@ class RestaurantChatAgent:
 
         # 2) Añadimos un solo nodo (main_agent_node)
         graph.add_node("AgentNode", main_agent_node)
-        graph.add_node("ToolsNode", ToolNode([confirm_order_tool, get_menu_tool, get_order_status_tool, send_menu_pdf_tool]))
+        # Usamos nuestro nodo personalizado en lugar de ToolNode
+        graph.add_node("ToolsNode", parallel_tools_node)
 
         # 3)
         graph.add_edge(START, "AgentNode")
@@ -358,6 +357,74 @@ class RestaurantChatAgent:
                              thread_id=conversation_id,
                              restaurant_name=restaurant_name), str(doc_id)
 
-
+# Nodo de herramientas personalizado que usa asyncio.gather para el paralelismo
+async def parallel_tools_node(state: RestaurantState) -> RestaurantState:
+    """
+    Ejecuta las herramientas en el último mensaje AIMessage de forma paralela 
+    usando asyncio.gather y añade los resultados como ToolMessages.
+    """
+    # Obtener el último mensaje, que debe ser un AIMessage con tool_calls
+    last_message = state["messages"][-1]
+    if not isinstance(last_message, AIMessage) or not last_message.tool_calls:
+        return state
+    
+    new_messages = list(state["messages"])
+    tool_calls = last_message.tool_calls
+    
+    # Configurar las tareas para todas las herramientas llamadas
+    tasks = []
+    tool_call_indices = []
+    
+    for i, tool_call in enumerate(tool_calls):
+        tool_name = tool_call["name"]
+        tool_args = tool_call["args"]
+        
+        # Seleccionar la herramienta adecuada
+        if tool_name == "get_menu_tool":
+            tasks.append(get_menu_tool(**tool_args))
+            tool_call_indices.append(i)
+        elif tool_name == "confirm_order_tool":
+            tasks.append(confirm_order_tool(**tool_args))
+            tool_call_indices.append(i)
+        elif tool_name == "get_order_status_tool":
+            tasks.append(get_order_status_tool(**tool_args))
+            tool_call_indices.append(i)
+        elif tool_name == "send_menu_pdf_tool":
+            tasks.append(send_menu_pdf_tool(**tool_args))
+            tool_call_indices.append(i)
+    
+    # Ejecutar todas las herramientas en paralelo
+    if tasks:
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Añadir los resultados como ToolMessages
+        for i, result in enumerate(results):
+            tool_call_index = tool_call_indices[i]
+            tool_call = tool_calls[tool_call_index]
+            
+            if isinstance(result, Exception):
+                # Manejar errores
+                tool_message = ToolMessage(
+                    content=f"Error ejecutando herramienta {tool_call['name']}: {str(result)}",
+                    tool_call_id=tool_call.get("id", ""),
+                    name=tool_call["name"]
+                )
+            else:
+                # Convertir resultado a string si no lo es
+                result_str = json.dumps(result) if not isinstance(result, str) else result
+                tool_message = ToolMessage(
+                    content=result_str,
+                    tool_call_id=tool_call.get("id", ""),
+                    name=tool_call["name"]
+                )
+            
+            new_messages.append(tool_message)
+    
+    return {
+        "messages": new_messages,
+        "thread_id": state["thread_id"],
+        "restaurant_name": state["restaurant_name"],
+        "user_id": state["user_id"]
+    }
 
         
