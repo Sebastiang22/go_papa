@@ -13,7 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, Search, Loader2, CheckCircle, Clock } from "lucide-react"
+import { ArrowUpDown, ChevronDown, Filter, Search, Loader2, CheckCircle, Clock, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -21,10 +21,13 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/status-badge"
 
 export type Product = {
   name: string
@@ -69,29 +72,50 @@ interface OrderListProps {
   orders: Order[]
   onSelectOrder: (order: Order) => void
   onStatusUpdate: (orderId: string, newStatus: string) => void
+  onDeleteOrder: (orderId: string) => void
+  updatingOrderIds?: Set<string>
+  setUpdatingOrderIds?: (updater: (prev: Set<string>) => Set<string>) => void
 }
 
-export function OrderList({ orders, onSelectOrder, onStatusUpdate }: OrderListProps) {
-  const [sorting, setSorting] = useState<SortingState>([])
+export function OrderList({ orders, onSelectOrder, onStatusUpdate, onDeleteOrder, updatingOrderIds = new Set(), setUpdatingOrderIds }: OrderListProps) {
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "created_at", desc: true }
+  ])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [searchTerm, setSearchTerm] = useState("")
-  const [updatingOrders, setUpdatingOrders] = useState<Set<string>>(new Set())
+  const [statusFilter, setStatusFilter] = useState<string | null>(null)
+
+  // Función para manejar el cambio en el filtro de estado
+  const handleStatusFilterChange = (status: string | null) => {
+    setStatusFilter(status)
+    
+    if (status) {
+      // Aplicar filtro por estado
+      setColumnFilters(prev => {
+        // Eliminar filtro anterior de estado si existe
+        const filteredValues = prev.filter(filter => filter.id !== "state")
+        // Añadir nuevo filtro
+        return [...filteredValues, { id: "state", value: status }]
+      })
+    } else {
+      // Eliminar filtro por estado
+      setColumnFilters(prev => prev.filter(filter => filter.id !== "state"))
+    }
+  }
 
   const handleStatusUpdate = async (orderId: string, newStatus: string) => {
-    // Marcar el pedido como actualizando
-    setUpdatingOrders(prev => new Set(prev).add(orderId))
+    // Si se proporciona setUpdatingOrderIds, usarlo, de lo contrario no hacer nada con updatingOrderIds
+    setUpdatingOrderIds?.(prev => new Set(prev).add(orderId));
     
     try {
-      // Llamar a la función de actualización proporcionada por el componente padre
-      await onStatusUpdate(orderId, newStatus)
+      await onStatusUpdate(orderId, newStatus);
     } finally {
-      // Desmarcar el pedido como actualizando
-      setUpdatingOrders(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(orderId)
-        return newSet
-      })
+      setUpdatingOrderIds?.(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(orderId);
+        return newSet;
+      });
     }
   }
 
@@ -99,12 +123,12 @@ export function OrderList({ orders, onSelectOrder, onStatusUpdate }: OrderListPr
     {
       accessorKey: "id",
       header: "# Pedido",
-      cell: ({ row }) => <div className="font-medium">{row.getValue("id")}</div>,
+      cell: ({ row }) => <span className="font-medium">#{row.getValue("id")}</span>,
     },
     {
       accessorKey: "table_id",
       header: "Dirección",
-      cell: ({ row }) => <div>{row.getValue("table_id")}</div>,
+      cell: ({ row }) => <div className="max-w-[200px] truncate">{row.getValue("table_id")}</div>,
     },
     {
       accessorKey: "customer_name",
@@ -137,38 +161,93 @@ export function OrderList({ orders, onSelectOrder, onStatusUpdate }: OrderListPr
     },
     {
       accessorKey: "created_at",
-      header: ({ column }) => {
-        return (
-          <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+      header: ({ column }) => (
+        <div className="flex items-center">
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            className="p-0 hover:bg-transparent"
+          >
             Fecha
             <ArrowUpDown className="ml-2 h-4 w-4" />
           </Button>
-        )
+        </div>
+      ),
+      cell: ({ row }) => {
+        return <div className="font-medium">{formatDate(row.getValue("created_at"))}</div>
       },
-      cell: ({ row }) => formatDate(row.getValue("created_at")),
+      sortingFn: (rowA, rowB, columnId) => {
+        const dateA = new Date(rowA.getValue(columnId)).getTime()
+        const dateB = new Date(rowB.getValue(columnId)).getTime()
+        return dateA < dateB ? -1 : dateA > dateB ? 1 : 0
+      },
     },
     {
       accessorKey: "state",
-      header: "Estado",
+      header: ({ column }) => (
+        <div className="flex items-center">
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            className="p-0 hover:bg-transparent"
+          >
+            Estado
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+          {/* Añadir menú de filtro por estado */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="ml-1 h-8 w-8">
+                <Filter className="h-4 w-4" />
+                {statusFilter && <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary" />}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem 
+                onClick={() => handleStatusFilterChange(null)}
+                className={!statusFilter ? "bg-accent/50" : ""}
+              >
+                Todos
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={() => handleStatusFilterChange("pendiente")}
+                className={statusFilter === "pendiente" ? "bg-accent/50" : ""}
+              >
+                Pendientes
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => handleStatusFilterChange("en preparación")}
+                className={statusFilter === "en preparación" ? "bg-accent/50" : ""}
+              >
+                En preparación
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => handleStatusFilterChange("completado")}
+                className={statusFilter === "completado" ? "bg-accent/50" : ""}
+              >
+                Completados
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ),
       cell: ({ row }) => {
         const status = row.getValue("state") as string
-        const orderId = row.original.id
-        const isUpdating = updatingOrders.has(orderId)
         
-        const statusColors = {
-          pendiente: "bg-yellow-500",
-          "en preparación": "bg-blue-500",
-          completado: "bg-green-500",
+        if (updatingOrderIds.has(row.original.id)) {
+          return (
+            <div className="flex items-center">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <StatusBadge status={status} />
+            </div>
+          )
         }
-
-        return (
-          <div className="flex items-center">
-            {isUpdating && <Loader2 className="h-4 w-4 mr-2 animate-spin text-muted-foreground" />}
-            <Badge className={statusColors[status] || "bg-gray-500"}>
-              {status.charAt(0).toUpperCase() + status.slice(1)}
-            </Badge>
-          </div>
-        )
+        
+        return <StatusBadge status={status} />
+      },
+      filterFn: (row, id, value) => {
+        return row.getValue(id) === value
       },
     },
     {
@@ -176,34 +255,27 @@ export function OrderList({ orders, onSelectOrder, onStatusUpdate }: OrderListPr
       header: "Acciones",
       cell: ({ row }) => {
         const order = row.original
-        const isUpdating = updatingOrders.has(order.id)
+        const isUpdating = updatingOrderIds.has(order.id)
         
         return (
-          <div className="flex items-center justify-end space-x-2" onClick={(e) => e.stopPropagation()}>
-            {order.state !== "completado" && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 w-8 p-0 text-green-600"
-                onClick={() => handleStatusUpdate(order.id, "completado")}
-                disabled={isUpdating}
-              >
-                {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                <span className="sr-only">Marcar como completado</span>
-              </Button>
-            )}
-            {order.state === "completado" && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 w-8 p-0 text-yellow-600"
-                onClick={() => handleStatusUpdate(order.id, "pendiente")}
-                disabled={isUpdating}
-              >
-                {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
-                <span className="sr-only">Marcar como pendiente</span>
-              </Button>
-            )}
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDeleteOrder(order.id)
+              }}
+              disabled={isUpdating}
+              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+            >
+              {isUpdating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              <span className="sr-only">Eliminar</span>
+            </Button>
           </div>
         )
       },
@@ -228,17 +300,57 @@ export function OrderList({ orders, onSelectOrder, onStatusUpdate }: OrderListPr
     columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    onColumnVisibilityChange: setColumnVisibility,
     state: {
       sorting,
       columnFilters,
       columnVisibility,
+      globalFilter: searchTerm,
+    },
+    initialState: {
+      pagination: {
+        pageSize: 10,
+      },
+    },
+    enableGlobalFilter: true,
+    globalFilterFn: (row, id, filterValue) => {
+      const safeValue = (value: unknown): string => {
+        if (typeof value === 'string') return value.toLowerCase()
+        if (typeof value === 'number') return value.toString()
+        if (value === null || value === undefined) return ''
+        if (typeof value === 'object') {
+          // Manejar caso específico de products
+          if (Array.isArray(value) && id === 'products') {
+            return value.map(product => product.name).join(' ').toLowerCase()
+          }
+          return JSON.stringify(value).toLowerCase()
+        }
+        return String(value).toLowerCase()
+      }
+      
+      const searchValue = filterValue.toLowerCase()
+      const customerName = safeValue(row.getValue('customer_name'))
+      const tableId = safeValue(row.getValue('table_id'))
+      const products = row.getValue('products') as Product[]
+      const productsText = products
+        .map(p => `${p.name} ${p.observations || ''}`)
+        .join(' ')
+        .toLowerCase()
+      
+      return customerName.includes(searchValue) || 
+             tableId.includes(searchValue) || 
+             productsText.includes(searchValue)
     },
   })
+
+  // Indicador de filtro activo
+  const activeFiltersCount = 
+    (statusFilter ? 1 : 0) + 
+    (searchTerm ? 1 : 0)
 
   return (
     <div>
@@ -252,30 +364,53 @@ export function OrderList({ orders, onSelectOrder, onStatusUpdate }: OrderListPr
             className="pl-9 w-full"
           />
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="ml-auto">
-              Columnas <ChevronDown className="ml-2 h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {table
-              .getAllColumns()
-              .filter((column) => column.getCanHide())
-              .map((column) => {
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    className="capitalize"
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                  >
-                    {column.id}
-                  </DropdownMenuCheckboxItem>
-                )
-              })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        
+        <div className="flex items-center gap-2">
+          {/* Mostrar indicador de filtros activos */}
+          {activeFiltersCount > 0 && (
+            <Badge variant="outline" className="flex items-center gap-1">
+              <span>Filtros activos: {activeFiltersCount}</span>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-4 w-4 p-0 hover:bg-transparent"
+                onClick={() => {
+                  setSearchTerm('')
+                  setStatusFilter(null)
+                  setColumnFilters([])
+                }}
+              >
+                <span className="sr-only">Limpiar filtros</span>
+                ✕
+              </Button>
+            </Badge>
+          )}
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="ml-auto">
+                Columnas <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {table
+                .getAllColumns()
+                .filter((column) => column.getCanHide())
+                .map((column) => {
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={column.id}
+                      className="capitalize"
+                      checked={column.getIsVisible()}
+                      onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                    >
+                      {column.id}
+                    </DropdownMenuCheckboxItem>
+                  )
+                })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
       <div className="rounded-md border overflow-x-auto">
         <Table>
@@ -295,7 +430,7 @@ export function OrderList({ orders, onSelectOrder, onStatusUpdate }: OrderListPr
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => {
-                const isUpdating = updatingOrders.has(row.original.id)
+                const isUpdating = updatingOrderIds.has(row.original.id)
                 return (
                   <TableRow
                     key={row.id}
@@ -303,7 +438,16 @@ export function OrderList({ orders, onSelectOrder, onStatusUpdate }: OrderListPr
                     onClick={() => !isUpdating && onSelectOrder(row.original)}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                      <TableCell key={cell.id}>
+                        {isUpdating && cell.column.id === 'state' ? (
+                          <div className="flex items-center">
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </div>
+                        ) : (
+                          flexRender(cell.column.columnDef.cell, cell.getContext())
+                        )}
+                      </TableCell>
                     ))}
                   </TableRow>
                 )

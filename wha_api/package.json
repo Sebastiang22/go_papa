@@ -4,7 +4,7 @@
   "description": "Bot de WhatsApp usando Baileys",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index_http.js"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.0",

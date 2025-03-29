@@ -17,6 +17,18 @@ from inference.tools.restaurant_tools import get_menu_tool,confirm_order_tool,ge
 import json
 import asyncio
 from langchain_openai import ChatOpenAI
+import sys
+import asyncio
+
+# Si estamos en Python 3.11 o superior, parcheamos create_task para ignorar el argumento 'context'
+if sys.version_info >= (3, 11):
+    original_create_task = asyncio.create_task
+
+    def create_task_patch(coro, *, context=None, name=None):
+        # Ignoramos 'context' si se pasa, pero pasamos 'name'
+        return original_create_task(coro, name=name)
+
+    asyncio.create_task = create_task_patch
 
 ######################################################
 # 1) Estado del Bot (hereda messages)
@@ -84,7 +96,7 @@ Eres un asistente de IA especializado en la atención a clientes para nuestro re
      - Presenta la información de forma clara y amigable.
 
 4. *send_menu_pdf_tool*  
-   - *Función:* Envía el menú completo en formato PDF al cliente.  
+   - *Función:* Envía las fotos del menú completo al cliente.  
    - *Uso:*  
      - Llama a esta herramienta cuando el cliente solicite explícitamente ver el menú.  
      - Informa al cliente que ha recibido el menú y procede a tomar su pedido.

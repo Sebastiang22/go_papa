@@ -85,7 +85,7 @@ async def delete_order(order_id: str, partition_key: Optional[str] = None):
             status_code=404,
             detail=f"No se encontró el pedido {order_id} o no se pudo eliminar."
         )
-    return {"detail": "Pedido eliminado correctamente."}
+    return {"detail": "Pedido eliminado correctamente.", "id": order_id}
 
 @orders_router.post("/create", response_model=Dict[str, Any])
 async def create_order(order: Dict[str, Any] = Body(...)):
