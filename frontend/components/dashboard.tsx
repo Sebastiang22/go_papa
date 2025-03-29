@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { MoonIcon, SunIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useToast } from "@/components/ui/use-toast"
@@ -11,6 +11,7 @@ import { OrderList } from "@/components/order-list"
 import { OrderModal } from "@/components/order-modal"
 import { Statistics } from "@/components/statistics"
 import type { Order } from "./order-list"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 
 // Componente Emoji accesible
 const Emoji = ({ 
@@ -50,11 +51,14 @@ export default function Dashboard() {
   const [backendData, setBackendData] = useState<BackendData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [updatingOrderIds, setUpdatingOrderIds] = useState<Set<string>>(new Set())
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false)
+  const [pendingDeleteOrderId, setPendingDeleteOrderId] = useState<string | null>(null)
 
-const API_URL = "https://af-gopapa.azurewebsites.net";
+  const API_URL = "http://127.0.0.1:8000";
 
-  // Función para cargar los datos
-  const fetchData = async () => {
+  // Función para cargar los datos con useCallback para evitar recreaciones innecesarias
+  const fetchData = useCallback(async () => {
     try {
       setIsLoading(true)
       setError(null)
@@ -82,6 +86,14 @@ const API_URL = "https://af-gopapa.azurewebsites.net";
       const data: BackendData = await response.json()
       console.log("Datos recibidos del backend:", data)
       setBackendData(data)
+      
+      // También actualizamos el pedido seleccionado si existe
+      if (selectedOrder) {
+        const updatedOrder = data.orders.find(order => order.id === selectedOrder.id);
+        if (updatedOrder) {
+          setSelectedOrder(updatedOrder);
+        }
+      }
     } catch (err) {
       console.error("Error fetching data:", err)
       setError("Error al cargar los datos. Por favor, intente nuevamente.")
@@ -93,12 +105,18 @@ const API_URL = "https://af-gopapa.azurewebsites.net";
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [API_URL, toast, selectedOrder])
 
+  // Cargar datos iniciales y configurar actualización periódica
   useEffect(() => {
     fetchData()
-  }, [toast])
-  
+    
+    // Configurar intervalo para actualización automática cada 30 segundos
+    const intervalId = setInterval(fetchData, 30000)
+    
+    // Limpieza al desmontar
+    return () => clearInterval(intervalId)
+  }, [fetchData])
 
   const handleSelectOrder = (order: Order) => {
     setSelectedOrder(order)
@@ -107,8 +125,31 @@ const API_URL = "https://af-gopapa.azurewebsites.net";
 
   const handleStatusUpdate = async (orderId: string, newStatus: string) => {
     try {
-      setIsLoading(true)
+      // Marcar como actualizando
+      setUpdatingOrderIds(prev => {
+        const newSet = new Set(prev)
+        newSet.add(orderId)
+        return newSet
+      })
+      
       console.log(`Actualizando pedido ${orderId} a estado: ${newStatus}`)
+      
+      // Actualización optimista de la UI
+      if (backendData) {
+        const updatedOrders = backendData.orders.map(order => 
+          order.id === orderId ? { ...order, state: newStatus } : order
+        );
+        
+        setBackendData(prev => prev ? {
+          ...prev,
+          orders: updatedOrders
+        } : null);
+        
+        // Actualizar el pedido seleccionado si es el que estamos modificando
+        if (selectedOrder && selectedOrder.id === orderId) {
+          setSelectedOrder({ ...selectedOrder, state: newStatus });
+        }
+      }
       
       // Llamada a la API para actualizar el estado
       const response = await fetch(`${API_URL}/orders/update_state`, {
@@ -135,7 +176,7 @@ const API_URL = "https://af-gopapa.azurewebsites.net";
         variant: "default",
       })
       
-      // Recargar los datos para asegurarnos de tener la información más actualizada
+      // Recargar los datos para asegurarnos de tener información actualizada
       await fetchData()
       
     } catch (err) {
@@ -143,10 +184,107 @@ const API_URL = "https://af-gopapa.azurewebsites.net";
       toast({
         variant: "destructive",
         title: "Error",
-        description: err instanceof Error ? err.message : "No se pudo actualizar el estado del pedido. Por favor, intente nuevamente.",
+        description: err instanceof Error ? err.message : "No se pudo actualizar el estado del pedido.",
       })
+      
+      // Recargar datos en caso de error para revertir cambios optimistas incorrectos
+      await fetchData()
     } finally {
-      setIsLoading(false)
+      // Quitar la marca de actualización
+      setUpdatingOrderIds(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(orderId)
+        return newSet
+      })
+    }
+  }
+
+  // Actualizar la función handleDeleteOrder
+  const handleDeleteOrder = async (orderId: string) => {
+    // En lugar de mostrar confirm() directamente, guardamos el ID y mostramos el diálogo
+    setPendingDeleteOrderId(orderId)
+    setIsConfirmDialogOpen(true)
+  }
+
+  // Añadir una nueva función para manejar la eliminación confirmada
+  const handleConfirmedDelete = async () => {
+    // Verificar que tenemos un ID válido
+    if (!pendingDeleteOrderId) return
+
+    const orderIdToDelete = pendingDeleteOrderId
+    
+    try {
+      // Marcar como actualizando
+      setUpdatingOrderIds(prev => {
+        const newSet = new Set(prev)
+        newSet.add(orderIdToDelete)
+        return newSet
+      })
+      
+      console.log(`Eliminando pedido ${orderIdToDelete}`)
+      
+      // Llamada a la API para eliminar el pedido
+      const response = await fetch(`${API_URL}/orders/${orderIdToDelete}`, {
+        method: "DELETE",
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Error al eliminar pedido: ${response.status}`)
+      }
+      
+      // Actualización optimista de la UI (eliminar de la lista)
+      if (backendData) {
+        const updatedOrders = backendData.orders.filter(order => order.id !== orderIdToDelete)
+        
+        setBackendData(prev => prev ? {
+          ...prev,
+          orders: updatedOrders,
+          stats: {
+            ...prev.stats,
+            total_orders: prev.stats.total_orders - 1,
+            pending_orders: prev.stats.pending_orders - (
+              selectedOrder?.state === 'pendiente' ? 1 : 0
+            ),
+            complete_orders: prev.stats.complete_orders - (
+              selectedOrder?.state === 'completado' ? 1 : 0
+            )
+          }
+        } : null)
+        
+        // Si el pedido eliminado era el seleccionado, cerrar el modal
+        if (selectedOrder && selectedOrder.id === orderIdToDelete) {
+          setSelectedOrder(null)
+          setIsModalOpen(false)
+        }
+      }
+      
+      toast({
+        title: "Pedido eliminado",
+        description: `El pedido #${orderIdToDelete} ha sido eliminado correctamente.`,
+      })
+      
+      // Recargar los datos para asegurarnos de tener información actualizada
+      await fetchData()
+    } catch (err) {
+      console.error("Error al eliminar pedido:", err)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err instanceof Error ? err.message : "No se pudo eliminar el pedido.",
+      })
+      
+      // Recargar datos en caso de error
+      await fetchData()
+    } finally {
+      // Quitar la marca de actualización
+      setUpdatingOrderIds(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(orderIdToDelete)
+        return newSet
+      })
+      
+      // Limpiar el ID pendiente
+      setPendingDeleteOrderId(null)
     }
   }
 
@@ -196,11 +334,18 @@ const API_URL = "https://af-gopapa.azurewebsites.net";
       <main className="flex-1 container mx-auto px-4 py-6">
         <div className="mb-6">{backendData && <Statistics stats={backendData.stats} />}</div>
         <div>
-          {backendData && backendData.orders.length > 0 ? (
+          {isLoading && !backendData ? (
+            <div className="text-center py-12">
+              <Emoji symbol="⏳" label="cargando" className="text-4xl block mx-auto mb-4" />
+              <p>Cargando pedidos...</p>
+            </div>
+          ) : backendData && backendData.orders.length > 0 ? (
             <OrderList
               orders={backendData.orders}
               onSelectOrder={handleSelectOrder}
               onStatusUpdate={handleStatusUpdate}
+              onDeleteOrder={handleDeleteOrder}
+              updatingOrderIds={updatingOrderIds}
             />
           ) : (
             <div className="text-center py-12 border rounded-lg bg-card">
@@ -219,6 +364,19 @@ const API_URL = "https://af-gopapa.azurewebsites.net";
           open={isModalOpen}
           onOpenChange={setIsModalOpen}
           onStatusUpdate={handleStatusUpdate}
+          onDeleteOrder={handleDeleteOrder}
+          isUpdating={selectedOrder ? updatingOrderIds.has(selectedOrder.id) : false}
+        />
+
+        <ConfirmDialog
+          title="Confirmar eliminación"
+          description="¿Estás seguro de que deseas eliminar este pedido? Esta acción no se puede deshacer."
+          open={isConfirmDialogOpen}
+          onOpenChange={setIsConfirmDialogOpen}
+          onConfirm={handleConfirmedDelete}
+          confirmText="Eliminar"
+          cancelText="Cancelar"
+          isDestructive={true}
         />
       </main>
     </div>

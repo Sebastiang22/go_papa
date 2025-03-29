@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { Clock, User, CalendarDays, RefreshCw, AlertCircle, Loader2 } from "lucide-react"
+import { Clock, User, CalendarDays, RefreshCw, AlertCircle, Loader2, Trash2 } from "lucide-react"
 import type { Order } from "./order-list"
 
 interface OrderModalProps {
@@ -22,6 +22,8 @@ interface OrderModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onStatusUpdate: (orderId: string, newStatus: string) => void
+  onDeleteOrder: (orderId: string) => void
+  isUpdating?: boolean
 }
 
 // Función para formatear números a pesos colombianos
@@ -44,9 +46,7 @@ const formatDate = (dateString: string) => {
   })
 }
 
-export function OrderModal({ order, open, onOpenChange, onStatusUpdate }: OrderModalProps) {
-  const [isUpdating, setIsUpdating] = useState(false)
-  
+export function OrderModal({ order, open, onOpenChange, onStatusUpdate, onDeleteOrder, isUpdating = false }: OrderModalProps) {
   if (!order) return null
 
   const statusColors = {
@@ -56,13 +56,14 @@ export function OrderModal({ order, open, onOpenChange, onStatusUpdate }: OrderM
   }
   
   const handleStatusChange = async (value: string) => {
-    setIsUpdating(true)
     try {
       await onStatusUpdate(order.id, value)
       // No necesitamos hacer nada más aquí, ya que el componente Dashboard
       // se encargará de recargar los datos y actualizar el estado
-    } finally {
-      setIsUpdating(false)
+    } catch (err) {
+      console.error("Error updating order status:", err)
+      // Recargar datos en caso de error para revertir cambios optimistas incorrectos
+      await onStatusUpdate(order.id, order.state)
     }
   }
 
@@ -193,16 +194,29 @@ export function OrderModal({ order, open, onOpenChange, onStatusUpdate }: OrderM
           >
             Cerrar
           </Button>
+          
+          <Button
+            variant="destructive"
+            className="w-full"
+            onClick={() => onDeleteOrder(order.id)}
+            disabled={isUpdating}
+          >
+            {isUpdating ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Eliminando...
+              </>
+            ) : (
+              <>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Eliminar Pedido
+              </>
+            )}
+          </Button>
+          
           <Button
             className="w-full"
-            onClick={() => {
-              setIsUpdating(true)
-              onStatusUpdate(order.id, "completado")
-                .finally(() => {
-                  setIsUpdating(false)
-                  onOpenChange(false)
-                })
-            }}
+            onClick={() => onStatusUpdate(order.id, "completado")}
             disabled={isUpdating || order.state === "completado"}
           >
             {isUpdating ? (

@@ -13,7 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, Search, Loader2, CheckCircle, Clock } from "lucide-react"
+import { ArrowUpDown, ChevronDown, Search, Loader2, CheckCircle, Clock, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -69,25 +69,28 @@ interface OrderListProps {
   orders: Order[]
   onSelectOrder: (order: Order) => void
   onStatusUpdate: (orderId: string, newStatus: string) => void
+  onDeleteOrder: (orderId: string) => void
+  updatingOrderIds?: Set<string>
 }
 
-export function OrderList({ orders, onSelectOrder, onStatusUpdate }: OrderListProps) {
-  const [sorting, setSorting] = useState<SortingState>([])
+export function OrderList({ orders, onSelectOrder, onStatusUpdate, onDeleteOrder, updatingOrderIds = new Set() }: OrderListProps) {
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "created_at", desc: true }
+  ])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [searchTerm, setSearchTerm] = useState("")
-  const [updatingOrders, setUpdatingOrders] = useState<Set<string>>(new Set())
 
   const handleStatusUpdate = async (orderId: string, newStatus: string) => {
     // Marcar el pedido como actualizando
-    setUpdatingOrders(prev => new Set(prev).add(orderId))
+    setUpdatingOrderIds(prev => new Set(prev).add(orderId))
     
     try {
       // Llamar a la función de actualización proporcionada por el componente padre
       await onStatusUpdate(orderId, newStatus)
     } finally {
       // Desmarcar el pedido como actualizando
-      setUpdatingOrders(prev => {
+      setUpdatingOrderIds(prev => {
         const newSet = new Set(prev)
         newSet.delete(orderId)
         return newSet
@@ -99,12 +102,12 @@ export function OrderList({ orders, onSelectOrder, onStatusUpdate }: OrderListPr
     {
       accessorKey: "id",
       header: "# Pedido",
-      cell: ({ row }) => <div className="font-medium">{row.getValue("id")}</div>,
+      cell: ({ row }) => <span className="font-medium">#{row.getValue("id")}</span>,
     },
     {
       accessorKey: "table_id",
       header: "Dirección",
-      cell: ({ row }) => <div>{row.getValue("table_id")}</div>,
+      cell: ({ row }) => <div className="max-w-[200px] truncate">{row.getValue("table_id")}</div>,
     },
     {
       accessorKey: "customer_name",
@@ -137,15 +140,26 @@ export function OrderList({ orders, onSelectOrder, onStatusUpdate }: OrderListPr
     },
     {
       accessorKey: "created_at",
-      header: ({ column }) => {
-        return (
-          <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+      header: ({ column }) => (
+        <div className="flex items-center">
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            className="p-0 hover:bg-transparent"
+          >
             Fecha
             <ArrowUpDown className="ml-2 h-4 w-4" />
           </Button>
-        )
+        </div>
+      ),
+      cell: ({ row }) => {
+        return <div className="font-medium">{formatDate(row.getValue("created_at"))}</div>
       },
-      cell: ({ row }) => formatDate(row.getValue("created_at")),
+      sortingFn: (rowA, rowB, columnId) => {
+        const dateA = new Date(rowA.getValue(columnId)).getTime()
+        const dateB = new Date(rowB.getValue(columnId)).getTime()
+        return dateA < dateB ? -1 : dateA > dateB ? 1 : 0
+      },
     },
     {
       accessorKey: "state",
@@ -153,7 +167,7 @@ export function OrderList({ orders, onSelectOrder, onStatusUpdate }: OrderListPr
       cell: ({ row }) => {
         const status = row.getValue("state") as string
         const orderId = row.original.id
-        const isUpdating = updatingOrders.has(orderId)
+        const isUpdating = updatingOrderIds.has(orderId)
         
         const statusColors = {
           pendiente: "bg-yellow-500",
@@ -176,34 +190,27 @@ export function OrderList({ orders, onSelectOrder, onStatusUpdate }: OrderListPr
       header: "Acciones",
       cell: ({ row }) => {
         const order = row.original
-        const isUpdating = updatingOrders.has(order.id)
+        const isUpdating = updatingOrderIds.has(order.id)
         
         return (
-          <div className="flex items-center justify-end space-x-2" onClick={(e) => e.stopPropagation()}>
-            {order.state !== "completado" && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 w-8 p-0 text-green-600"
-                onClick={() => handleStatusUpdate(order.id, "completado")}
-                disabled={isUpdating}
-              >
-                {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                <span className="sr-only">Marcar como completado</span>
-              </Button>
-            )}
-            {order.state === "completado" && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 w-8 p-0 text-yellow-600"
-                onClick={() => handleStatusUpdate(order.id, "pendiente")}
-                disabled={isUpdating}
-              >
-                {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
-                <span className="sr-only">Marcar como pendiente</span>
-              </Button>
-            )}
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDeleteOrder(order.id)
+              }}
+              disabled={isUpdating}
+              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+            >
+              {isUpdating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              <span className="sr-only">Eliminar</span>
+            </Button>
           </div>
         )
       },
@@ -228,15 +235,20 @@ export function OrderList({ orders, onSelectOrder, onStatusUpdate }: OrderListPr
     columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    onColumnVisibilityChange: setColumnVisibility,
     state: {
       sorting,
       columnFilters,
       columnVisibility,
+    },
+    initialState: {
+      pagination: {
+        pageSize: 10,
+      },
     },
   })
 
@@ -295,7 +307,7 @@ export function OrderList({ orders, onSelectOrder, onStatusUpdate }: OrderListPr
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => {
-                const isUpdating = updatingOrders.has(row.original.id)
+                const isUpdating = updatingOrderIds.has(row.original.id)
                 return (
                   <TableRow
                     key={row.id}
@@ -303,7 +315,16 @@ export function OrderList({ orders, onSelectOrder, onStatusUpdate }: OrderListPr
                     onClick={() => !isUpdating && onSelectOrder(row.original)}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
+                      <TableCell key={cell.id}>
+                        {isUpdating && cell.column.id === 'state' ? (
+                          <div className="flex items-center">
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </div>
+                        ) : (
+                          flexRender(cell.column.columnDef.cell, cell.getContext())
+                        )}
+                      </TableCell>
                     ))}
                   </TableRow>
                 )

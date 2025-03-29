@@ -791,3 +791,50 @@ class MySQLOrderManager:
             logging.exception("Error general al actualizar el estado de los pedidos: %s", e)
             return None
 
+    async def delete_order(self, enum_order_table: str, partition_key: Optional[str] = None) -> bool:
+        """
+        Elimina un pedido y todos sus productos asociados de la base de datos.
+
+        Args:
+            enum_order_table: Identificador único del pedido
+            partition_key: Clave de partición (opcional)
+
+        Returns:
+            bool: True si la eliminación fue exitosa, False en caso contrario
+        """
+        try:
+            if self.connection is None or not self.connection.is_connected():
+                self._connect()
+                if self.connection is None or not self.connection.is_connected():
+                    logging.error("Failed to connect to MySQL database")
+                    return False
+            
+            cursor = self.connection.cursor()
+            try:
+                # Verificar si el pedido existe
+                cursor.execute("SELECT COUNT(*) FROM orders WHERE enum_order_table = %s", (enum_order_table,))
+                count = cursor.fetchone()[0]
+                
+                if count == 0:
+                    logging.warning(f"Intentando eliminar un pedido que no existe: {enum_order_table}")
+                    return False
+                
+                # Eliminar todos los productos asociados a este pedido
+                cursor.execute("DELETE FROM orders WHERE enum_order_table = %s", (enum_order_table,))
+                self.connection.commit()
+                
+                deleted_rows = cursor.rowcount
+                logging.info(f"Pedido eliminado: {enum_order_table}, {deleted_rows} productos eliminados")
+                
+                return deleted_rows > 0
+                
+            except Error as err:
+                logging.exception(f"Error al eliminar el pedido {enum_order_table}: {err}")
+                self.connection.rollback()
+                return False
+            finally:
+                cursor.close()
+        except Exception as e:
+            logging.exception(f"Error general al eliminar el pedido: {e}")
+            return False
+
