@@ -1,16 +1,15 @@
 import "./globals.css"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
-import { ThemeProvider } from "@/components/theme-provider"
-import { Toaster } from "@/components/toaster"
+import { Providers } from "./providers"
 import type React from "react"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Gestión de Pedidos - Café",
-  description: "Sistema de gestión de pedidos para cafeterías",
-    generator: 'v0.dev'
+  title: "Gestión de Pedidos - Go Papa",
+  description: "Sistema de gestión de pedidos para restaurante Go Papa",
+  generator: 'Next.js'
 }
 
 export default function RootLayout({
@@ -21,10 +20,9 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <Providers>
           {children}
-          <Toaster />
-        </ThemeProvider>
+        </Providers>
       </body>
     </html>
   )
