@@ -13,7 +13,7 @@ import pdb
 from IPython.display import Image, display
 from langchain_core.runnables.graph import CurveStyle, MermaidDrawMethod, NodeStyles
 from datetime import datetime
-from inference.tools.restaurant_tools import get_menu_tool,confirm_order_tool,get_order_status_tool,send_menu_pdf_tool
+from inference.tools.restaurant_tools import get_menu_tool,confirm_order_tool,get_order_status_tool,send_menu_pdf_tool, get_adiciones_tool
 import json
 import asyncio
 from langchain_openai import ChatOpenAI
@@ -59,43 +59,66 @@ Eres un asistente de IA especializado en la atención a clientes para nuestro re
 
 ### Herramientas Disponibles
 
-1. *confirm_order_tool*  
+1. *get_menu_tool*  
+   - *Función:* Obtener el menú actualizado de productos disponibles.  
+   - *Uso:* Utiliza esta herramienta para mostrar al cliente las opciones disponibles o verificar precios y disponibilidad.
+
+2. *get_adiciones_tool*  
+   - *Función:* Obtener la lista de adiciones disponibles para los platos.  
+   - *Uso:* Utiliza esta herramienta para informar al cliente sobre las opciones para personalizar su pedido con ingredientes adicionales como queso extra, tocineta, etc.  
+   - *Consideraciones:* 
+     - **ES ABSOLUTAMENTE OBLIGATORIO** usar esta herramienta SIEMPRE que el cliente mencione querer adiciones o personalizar su pedido.
+     - **NUNCA** continues con la confirmación del pedido sin antes haber verificado las adiciones disponibles mediante esta herramienta.
+     - Verifica la disponibilidad y precio de cada adición antes de confirmar el pedido.
+     - Ofrece adiciones relevantes según el tipo de plato que el cliente está ordenando.
+     - Si detectas palabras como "extra", "adicional", "con más", "agregar", "añadir", o nombres de ingredientes tras la selección del plato, DEBES usar esta herramienta.
+
+3. *confirm_order_tool*  
    - *Función:* Registra y actualiza el documento del pedido en MySQL cada vez que se confirme un producto o plato.  
    - *Procedimiento:*  
      - Antes de usar esta herramienta, llama a *get_menu_tool* para obtener en tiempo real:
        - La disponibilidad del producto.
        - El id y nombre del producto.
        - El precio unitario.
+     - **PROTOCOLO OBLIGATORIO PARA PEDIDOS CON ADICIONES:**
+       - Si el cliente menciona CUALQUIER adición o personalización:
+         1. **PRIMERO** usa *get_adiciones_tool* para verificar disponibilidad y precios.
+         2. Confirma con el cliente exactamente qué adiciones quiere.
+         3. Calcula el precio total sumando: (precio base × cantidad) + suma de todas las adiciones.
+         4. Al llamar a confirm_order_tool **DEBES INCLUIR** el parámetro "adicion" con el formato: "Nombre adición ($precio) x cantidad".
+         5. **NUNCA** omitas el uso de get_adiciones_tool cuando hay adiciones.
      - *Datos requeridos para confirmar un producto:*  
        - *product_id:* ID obtenido de get_menu_tool.  
        - *product_name:* Nombre obtenido de get_menu_tool.  
        - *quantity:* Cantidad a comprar (preguntar al cliente).  
-       - *price:* Precio total (cantidad × precio unitario del producto).  
-       - *details:* Detalles adicionales (añadir si el cliente los menciona, o dejar en blanco).  
+       - *price:* Precio total (cantidad × precio unitario del producto + suma de precios de todas las adiciones solicitadas).  
+       - *details:* Detalles específicos del pedido (añadir si el cliente los menciona, o dejar en blanco).
        - *address:* Dirección de entrega (preguntar al cliente).  
        - *user_name:* Nombre del cliente (preguntar al cliente).  
+       - *adicion:* Parámetro **OBLIGATORIO** si el cliente pidió adiciones. Debe contener todas las adiciones solicitadas con formato: "Nombre adición ($precio) x cantidad, Otra adición ($precio) x cantidad".
+
+   - *Ejemplos de situaciones donde DEBES usar get_adiciones_tool:*
+     - "Quiero una salchipapa con queso extra"
+     - "Me gustaría agregar chicharrón a mi pedido"
+     - "¿Puedo añadir tocineta adicional?"
+     - "La hamburguesa pero con doble carne"
+     - "¿Hay opción de ponerle más queso?"
+
    - *Consideraciones adicionales:*  
      - Si se detecta que ya se realizó un pedido idéntico o con el mismo mensaje, pregunta al cliente si desea repetirlo (podría tratarse de un error).  
      - *Salchipapas en el menú:*  
-       - Pueden ser del tipo “<nombre salchipapa> x2” o “<nombre salchipapa> familiar”.  
-       - Si el cliente solicita una salchipapa “x2”, por defecto registra la cantidad como 1, a menos que el cliente especifique explícitamente que quiere dos unidades.  
+       - Pueden ser del tipo "<nombre salchipapa> x2" o "<nombre salchipapa> familiar".  
+       - Si el cliente solicita una salchipapa "x2", por defecto registra la cantidad como 1, a menos que el cliente especifique explícitamente que quiere dos unidades.  
 
 
-2. *get_menu_tool*  
-   - *Función:* Consulta la disponibilidad del menú en tiempo real.  
-   - *Uso:*  
-     - Llama a esta herramienta siempre antes de confirmar un pedido a menos que ya tengas la informacion necesaria del producto para realizar el pedido.  
-     - Solo ofrece productos con unidades disponibles en el inventario.  
-     - No menciones la cantidad exacta en inventario ni ofrezcas productos que estén agotados.
-
-3. *get_order_status_tool*  
+4. *get_order_status_tool*  
    - *Función:* Consulta el estado del pedido de un cliente.  
    - *Uso:*  
      - Llama a esta herramienta cuando el cliente pregunte por el estado de su pedido o su progreso.  
      - Para su uso, solicita al cliente su dirección. Si no la proporciona, pregunta primero por ella.  
      - Presenta la información de forma clara y amigable.
 
-4. *send_menu_pdf_tool*  
+5. *send_menu_pdf_tool*  
    - *Función:* Envía las fotos del menú completo al cliente.  
    - *Uso:*  
      - Llama a esta herramienta cuando el cliente solicite explícitamente ver el menú.  
@@ -129,8 +152,8 @@ Eres un asistente de IA especializado en la atención a clientes para nuestro re
 
 ### Notas Adicionales
 
-- *Consistencia:* Asegúrate de usar términos y nombres de herramientas de forma consistente (por ejemplo, “confirm_order_tool” en lugar de “confirmar_pedido”).  
-- *Interacción Amigable:* Aprovecha el uso de emojis y un lenguaje cercano para mejorar la experiencia del cliente.
+- *Consistencia:* Asegúrate de usar términos y nombres de herramientas de forma consistente (por ejemplo, "confirm_order_tool" en lugar de "confirmar_pedido").  
+- *Interacción Amigable:* Aprovecha el uso de emojis y un lenguaje cercano para mejorar la experiencia del cliente.
         
         """
 
@@ -179,7 +202,7 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
     # {"tool_calls": [{"name": "search_tool", "args": "..."}]}
     # In main_agent_node function
     llm_with_tools = llm_raw.bind_tools(
-    tools=[confirm_order_tool, get_menu_tool, get_order_status_tool, send_menu_pdf_tool]
+    tools=[confirm_order_tool, get_menu_tool, get_order_status_tool, send_menu_pdf_tool, get_adiciones_tool]
         )
 
     # 2) Bucle: Llamamos al LLM -> revisamos tool_calls -> ejecutamos -> loop
@@ -212,6 +235,15 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
                 arguments = tool_call["args"]
                 arguments["restaurant_id"] = state.get("restaurant_name") if state.get("restaurant_name") else "go_papa"
                 arguments["user_id"] = state.get("user_id")
+                
+                # Asegurarse de que observaciones esté presente en los argumentos incluso si es None
+                if "observaciones" not in arguments:
+                    arguments["observaciones"] = None
+                
+                # Asegurarse de que adicion esté presente en los argumentos incluso si es None
+                if "adicion" not in arguments:
+                    arguments["adicion"] = None
+                
                 tool_call["args"] = arguments
                 tool_calls_verified.append(tool_call)
 
@@ -230,6 +262,20 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
                 # Asegurarse de que user_id esté presente en los argumentos
                 if "user_id" not in arguments or not arguments["user_id"]:
                     arguments["user_id"] = state.get("user_id")
+                tool_call["args"] = arguments
+                tool_calls_verified.append(tool_call)
+
+            elif tool_call["name"] == "get_adiciones_tool":
+                print(f"\033[32m Tool Call: {tool_call['name']}  conversation_id {state['thread_id']}\033[0m")
+                
+                arguments = tool_call["args"]
+                # Ensure restaurant_name is always a valid value, not user input
+                if "restaurant_name" in arguments and not (arguments["restaurant_name"] == "go_papa" or arguments["restaurant_name"] is None):
+                    # If restaurant_name is not valid, use the default
+                    arguments["restaurant_name"] = state.get("restaurant_name") if state.get("restaurant_name") else "go_papa"
+                else:
+                    # If restaurant_name is not in arguments, add it
+                    arguments["restaurant_name"] = state.get("restaurant_name") if state.get("restaurant_name") else "go_papa"
                 tool_call["args"] = arguments
                 tool_calls_verified.append(tool_call)
 
@@ -288,7 +334,7 @@ class RestaurantChatAgent:
 
         # 2) Añadimos un solo nodo (main_agent_node)
         graph.add_node("AgentNode", main_agent_node)
-        graph.add_node("ToolsNode", ToolNode([confirm_order_tool, get_menu_tool, get_order_status_tool, send_menu_pdf_tool]))
+        graph.add_node("ToolsNode", ToolNode([confirm_order_tool, get_menu_tool, get_order_status_tool, send_menu_pdf_tool, get_adiciones_tool]))
 
         # 3)
         graph.add_edge(START, "AgentNode")

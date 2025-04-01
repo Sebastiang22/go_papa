@@ -54,6 +54,8 @@ class MySQLInventoryManager:
                 quantity INT NOT NULL,
                 unit VARCHAR(50) NOT NULL,
                 price FLOAT,
+                descripcion TEXT,
+                tipo_producto ENUM('menu', 'adicion') DEFAULT 'menu',
                 last_updated DATETIME NOT NULL,
                 INDEX (restaurant_id)
             )
@@ -65,7 +67,7 @@ class MySQLInventoryManager:
         finally:
             cursor.close()
     
-    async def add_product(self, restaurant_id: str, name: str, quantity: int, unit: str, price: float = None) -> Optional[Dict[str, Any]]:
+    async def add_product(self, restaurant_id: str, name: str, quantity: int, unit: str, price: float = None, descripcion: str = "", tipo_producto: str = "menu") -> Optional[Dict[str, Any]]:
         """
         Agrega un nuevo producto al inventario.
         """
@@ -83,14 +85,16 @@ class MySQLInventoryManager:
                 "quantity": quantity,
                 "unit": unit,
                 "price": price,
+                "descripcion": descripcion,
+                "tipo_producto": tipo_producto,
                 "last_updated": datetime.now()
             }
             
             cursor = self.connection.cursor(dictionary=True)
             try:
                 query = """INSERT INTO inventory 
-                         (id, restaurant_id, name, quantity, unit, price, last_updated)
-                         VALUES (%s, %s, %s, %s, %s, %s, %s)"""
+                         (id, restaurant_id, name, quantity, unit, price, descripcion, tipo_producto, last_updated)
+                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"""
                 values = (
                     product["id"],
                     product["restaurant_id"],
@@ -98,6 +102,8 @@ class MySQLInventoryManager:
                     product["quantity"],
                     product["unit"],
                     product["price"],
+                    product["descripcion"],
+                    product["tipo_producto"],
                     product["last_updated"]
                 )
                 
@@ -118,7 +124,7 @@ class MySQLInventoryManager:
             logging.exception("Error general al agregar producto: %s", e)
             return None
     
-    async def get_inventory(self, restaurant_id: str) -> List[Dict[str, Any]]:
+    async def get_inventory(self, restaurant_id: str = None) -> List[Dict[str, Any]]:
         """
         Obtiene el inventario de un restaurante.
         """
@@ -131,22 +137,89 @@ class MySQLInventoryManager:
             
             cursor = self.connection.cursor(dictionary=True)
             try:
-                query = "SELECT * FROM inventory WHERE restaurant_id = %s"
-                cursor.execute(query, (restaurant_id,))
+                if restaurant_id:
+                    query = """
+                    SELECT * FROM inventory 
+                    WHERE restaurant_id = %s AND tipo_producto = 'menu'
+                    ORDER BY name
+                    """
+                    cursor.execute(query, (restaurant_id,))
+                else:
+                    query = """
+                    SELECT * FROM inventory 
+                    WHERE tipo_producto = 'menu'
+                    ORDER BY restaurant_id, name
+                    """
+                    cursor.execute(query)
+                
                 products = cursor.fetchall()
                 
-                # Convert datetime objects to isoformat strings
+                # Format datetime to isoformat for consistent API
                 for product in products:
-                    product["last_updated"] = product["last_updated"].isoformat()
+                    if "last_updated" in product and product["last_updated"]:
+                        product["last_updated"] = product["last_updated"].isoformat()
                 
+                logging.info("Obtenidos %d productos del inventario", len(products))
                 return products
             except Error as err:
-                logging.exception("Error al obtener inventario: %s", err)
+                logging.exception("Error al obtener productos del inventario: %s", err)
                 return []
             finally:
                 cursor.close()
         except Exception as e:
-            logging.exception("Error general al obtener inventario: %s", e)
+            logging.exception("Error general al obtener productos del inventario: %s", e)
+            return []
+    
+    async def get_adiciones(self, restaurant_id: str = None) -> List[Dict[str, Any]]:
+        """
+        Obtiene las adiciones del inventario (tipo adicion) para un restaurant_id dado.
+        
+        Parámetros:
+            restaurant_id (str): ID del restaurante. Si es None, se obtienen todas las adiciones.
+        
+        Retorna:
+            List[Dict[str, Any]]: Lista de adiciones del inventario.
+        """
+        try:
+            if self.connection is None or not self.connection.is_connected():
+                self._connect()
+                if self.connection is None or not self.connection.is_connected():
+                    logging.error("Failed to connect to MySQL database")
+                    return []
+            
+            cursor = self.connection.cursor(dictionary=True)
+            try:
+                if restaurant_id:
+                    query = """
+                    SELECT * FROM inventory 
+                    WHERE restaurant_id = %s AND tipo_producto = 'adicion'
+                    ORDER BY name
+                    """
+                    cursor.execute(query, (restaurant_id,))
+                else:
+                    query = """
+                    SELECT * FROM inventory 
+                    WHERE tipo_producto = 'adicion'
+                    ORDER BY restaurant_id, name
+                    """
+                    cursor.execute(query)
+                
+                adiciones = cursor.fetchall()
+                
+                # Format datetime to isoformat for consistent API
+                for adicion in adiciones:
+                    if "last_updated" in adicion and adicion["last_updated"]:
+                        adicion["last_updated"] = adicion["last_updated"].isoformat()
+                
+                logging.info("Obtenidas %d adiciones del inventario", len(adiciones))
+                return adiciones
+            except Error as err:
+                logging.exception("Error al obtener adiciones del inventario: %s", err)
+                return []
+            finally:
+                cursor.close()
+        except Exception as e:
+            logging.exception("Error general al obtener adiciones del inventario: %s", e)
             return []
     
     async def update_product(self, product_id: str, updated_fields: Dict[str, Any]) -> Optional[Dict[str, Any]]:

@@ -3,3 +3,4 @@
 .qodo
 .venv/
 .env
+node_modules

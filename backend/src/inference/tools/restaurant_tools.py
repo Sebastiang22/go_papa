@@ -39,7 +39,8 @@ async def confirm_order_tool(
     user_name: Optional[str],
     details: Optional[str],
     restaurant_id: str = "go_papa",
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None,
+    adicion: Optional[str] = None
     ) -> Optional[str]:
     """
     Realiza un pedido de un producto y lo guarda en MySQL.
@@ -51,20 +52,23 @@ async def confirm_order_tool(
         address (str): Dirección de entrega del pedido.
         price (float): Precio del producto.
         user_name (Optional[str]): Nombre del usuario que realiza el pedido.
-        details (Optional[str]): Detalles adicionales del pedido.
+        details (Optional[str]): Obsevaciones del pedido.
         restaurant_id (str): Identificador del restaurante. Por defecto "go_papa".
         user_id (Optional[str]): Identificador del usuario que realiza el pedido.
+        adicion (Optional[str]): Información sobre adiciones solicitadas para el pedido.
 
     Retorna:
         Optional[str]: Mensaje de confirmación si el pedido se realiza con éxito, o None en caso de error.
     """
+    print(f"\033[92m\nconfirm_order_tool activada \nid: {genereta_id()}\nenum_order_table: {1}\nproduct_id: {product_id}\naddress: {address}\nproduct_name: {product_name}\nquantity: {quantity}\nprice: {price}\nuser_name: {user_name}\nstate: {'pendiente'}\nrestaurant_id: {restaurant_id}\nuser_id: {user_id}\ndetails: {details}\nadicion: {adicion}\033[0m")
+    
     order_id = genereta_id()
     # Crear una única instancia de MySQLOrderManager
     order_manager = MySQLOrderManager()
     # Obtener el último pedido usando address
     latest_order = await order_manager.get_latest_order()
     txt_response = ""
-     # Verificar si el usuario tiene órdenes pendientes
+    # Verificar si el usuario tiene órdenes pendientes
     last_order_user = await order_manager.get_pending_orders_by_user_id(user_id)
     #verifica si hay ordenes 
     if latest_order:
@@ -106,7 +110,8 @@ async def confirm_order_tool(
         f"state: {state}\n"
         f"restaurant_id: {restaurant_id}\n"
         f"user_id: {user_id}\n"
-        f"details: {details}\033[0m"
+        f"details: {details}\n"
+        f"adicion: {adicion}\033[0m"
     )
     order = {
         "id": order_id,
@@ -114,13 +119,14 @@ async def confirm_order_tool(
         "product_id": product_id,
         "product_name": product_name,
         "quantity": quantity,
-        "details": details,
+        "observaciones": details,
         "price": price,
         "state": state,
         "address": address,
         "user_name": user_name,
         "restaurant_id": restaurant_id,
-        "user_id": user_id
+        "user_id": user_id,
+        "adicion": adicion
     }
     try:
         
@@ -215,3 +221,28 @@ async def send_menu_pdf_tool(user_id: str) -> str:
     except Exception as e:
         logging.exception("Error al enviar las imágenes del menú: %s", e)
         return f"Error al enviar las imágenes del menú: {str(e)}"
+
+async def get_adiciones_tool(restaurant_name: str = "go_papa") -> List[Dict[str, Any]]:
+    """
+    Obtiene la lista de adiciones disponibles para los platos desde MySQL.
+
+    Esta herramienta permite al agente consultar las adiciones que los clientes pueden agregar a sus platos
+    principales, como queso extra, tocineta adicional, etc.
+
+    Parámetros:
+        restaurant_name (str): Nombre del restaurante a consultar. Por defecto "go_papa".
+    
+    Retorna:
+        List[Dict[str, Any]]: Lista de diccionarios con la información de las adiciones disponibles.
+    """
+    print(f"\033[92m\nget_adiciones_tool activada \nrestaurant_name: {restaurant_name}\033[0m")
+    
+    inventory_manager = MySQLInventoryManager()
+    adiciones = await inventory_manager.get_adiciones(restaurant_name)
+    
+    print(f"Se encontraron {len(adiciones)} adiciones disponibles")
+    # Imprimir detalles de las adiciones para debug
+    for adicion in adiciones:
+        print(f"  - {adicion['name']}: ${adicion['price']} ({adicion['descripcion']})")
+    
+    return adiciones
