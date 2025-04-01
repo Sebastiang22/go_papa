@@ -293,98 +293,38 @@ async def add_go_papa_menu_items():
             "descripcion": "Coca Cola 3 litros",
             "tipo_producto": "menu"
         },
-        
-        # Adiciones
-        {
-            "name": "Porción extra de papas", 
-            "quantity": 30, 
-            "unit": "porción", 
-            "price": 8000, 
-            "descripcion": "Porción adicional de papas fritas",
-            "tipo_producto": "adicion"
-        },
-        {
-            "name": "Queso extra", 
-            "quantity": 30, 
-            "unit": "porción", 
-            "price": 5000, 
-            "descripcion": "Porción adicional de queso fundido",
-            "tipo_producto": "adicion"
-        },
-        {
-            "name": "Salchicha extra", 
-            "quantity": 30, 
-            "unit": "unidad", 
-            "price": 7000, 
-            "descripcion": "Salchicha Llanera adicional",
-            "tipo_producto": "adicion"
-        },
-        {
-            "name": "Chorizo extra", 
-            "quantity": 30, 
-            "unit": "unidad", 
-            "price": 6000, 
-            "descripcion": "Porción adicional de chorizo",
-            "tipo_producto": "adicion"
-        },
-        {
-            "name": "Pollo extra", 
-            "quantity": 30, 
-            "unit": "porción", 
-            "price": 8000, 
-            "descripcion": "Porción adicional de pollo",
-            "tipo_producto": "adicion"
-        },
-        {
-            "name": "Carne mechada extra", 
-            "quantity": 30, 
-            "unit": "porción", 
-            "price": 8000, 
-            "descripcion": "Porción adicional de carne mechada",
-            "tipo_producto": "adicion"
-        },
-        {
-            "name": "Guacamole extra", 
-            "quantity": 30, 
-            "unit": "porción", 
-            "price": 4000, 
-            "descripcion": "Porción adicional de guacamole",
-            "tipo_producto": "adicion"
-        },
-        {
-            "name": "Maicitos extra", 
-            "quantity": 30, 
-            "unit": "porción", 
-            "price": 3000, 
-            "descripcion": "Porción adicional de maíz tierno",
-            "tipo_producto": "adicion"
-        },
-        {
-            "name": "Tocineta extra", 
-            "quantity": 30, 
-            "unit": "porción", 
-            "price": 5000, 
-            "descripcion": "Porción adicional de tocineta",
-            "tipo_producto": "adicion"
-        },
-        {
-            "name": "Chicharrón extra", 
-            "quantity": 30, 
-            "unit": "porción", 
-            "price": 5000, 
-            "descripcion": "Porción adicional de chicharrón",
-            "tipo_producto": "adicion"
-        },
-        {
-            "name": "Salsa extra", 
-            "quantity": 30, 
-            "unit": "porción", 
-            "price": 2000, 
-            "descripcion": "Porción adicional de salsa Go Papa",
-            "tipo_producto": "adicion"
-        }
+
     ]
     
+    # Adiciones de 10,000 pesos
+    adiciones_10k = [
+        {"name": "Chicharrón", "price": 10000, "descripcion": "Chicharrón crujiente para añadir a tu plato"},
+        {"name": "Carne Mechada", "price": 10000, "descripcion": "Deliciosa carne mechada para complementar tu pedido"},
+        {"name": "Costilla", "price": 10000, "descripcion": "Tierna costilla para añadir a tu plato"},
+        {"name": "Salchicha", "price": 10000, "descripcion": "Salchicha adicional para tu plato"},
+        {"name": "Pollo", "price": 10000, "descripcion": "Pollo adicional para complementar tu pedido"},
+        {"name": "Queso Fundido", "price": 10000, "descripcion": "Delicioso queso fundido extra"},
+        {"name": "Nuggets", "price": 10000, "descripcion": "Nuggets de pollo para complementar tu plato"},
+        {"name": "Pulled Pork", "price": 10000, "descripcion": "Carne de cerdo desmenuzada y sazonada"},
+        {"name": "Chorizo", "price": 10000, "descripcion": "Chorizo adicional para tu plato"},
+        {"name": "Chorizo Español", "price": 10000, "descripcion": "Chorizo español importado para tu plato"},
+        {"name": "Jamón Serrano", "price": 10000, "descripcion": "Jamón serrano para complementar tu pedido"},
+        {"name": "Tocineta", "price": 10000, "descripcion": "Tocineta crujiente adicional"},
+        {"name": "Salami", "price": 10000, "descripcion": "Salami para añadir a tu plato"}
+    ]
+
+    # Adiciones de 8,000 pesos
+    adiciones_8k = [
+        {"name": "Papa", "price": 8000, "descripcion": "Porción extra de papas"},
+        {"name": "Piña Calada", "price": 8000, "descripcion": "Piña caramelizada para añadir un toque dulce"},
+        {"name": "Pico e Gallo", "price": 8000, "descripcion": "Mezcla fresca de tomate, cebolla y cilantro"},
+        {"name": "Guacamole", "price": 8000, "descripcion": "Guacamole fresco para complementar tu plato"},
+        {"name": "Maduro Calado", "price": 8000, "descripcion": "Plátano maduro frito para añadir a tu plato"},
+        {"name": "Maicitos", "price": 8000, "descripcion": "Maíz tierno para añadir a tu plato"},
+        {"name": "Huevos de Codorniz", "price": 8000, "descripcion": "Huevos de codorniz para complementar tu plato"},
+        {"name": "Cebolla Crispy", "price": 8000, "descripcion": "Cebolla crujiente para dar un toque especial"}
+    ]
+
     # Add each menu item to the inventory
     for item in menu_items:
         result = await inventory_manager.add_product(
@@ -401,6 +341,19 @@ async def add_go_papa_menu_items():
             print(f"Added {item['name']} to inventory")
         else:
             print(f"Failed to add {item['name']} to inventory")
+
+    # Agregar todas las adiciones al inventario
+    for adicion in adiciones_10k + adiciones_8k:
+        await inventory_manager.add_product(
+            restaurant_id=restaurant_id,
+            name=adicion["name"],
+            quantity=100,  # Cantidad inicial en inventario
+            unit="porción",
+            price=adicion["price"],
+            descripcion=adicion["descripcion"],
+            tipo_producto="adicion"  # Importante: marcar como adición
+        )
+        print(f"Adición agregada: {adicion['name']} - ${adicion['price']}")
 
 if __name__ == "__main__":
     asyncio.run(add_go_papa_menu_items())

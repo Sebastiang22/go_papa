@@ -86,12 +86,7 @@ class MySQLOrderManager:
             cursor.close()
     
     async def create_order(self, order: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """
-        Crea un nuevo pedido en la base de datos MySQL.
-
-        :param order: Diccionario que representa el pedido.
-        :return: El pedido creado o None en caso de error.
-        """
+        """Crea una nueva orden en la base de datos."""
         try:
             if self.connection is None or not self.connection.is_connected():
                 self._connect()
@@ -99,59 +94,52 @@ class MySQLOrderManager:
                     logging.error("Failed to connect to MySQL database")
                     return None
             
-            # Asignar fecha de creación si no existe
-            if "created_at" not in order:
-                order["created_at"] = datetime.now().isoformat()
-            
-            # Convertir fechas ISO a objetos datetime para MySQL
-            created_at = datetime.fromisoformat(order["created_at"].replace('Z', '+00:00'))
-            updated_at = datetime.now()
-            
             cursor = self.connection.cursor(dictionary=True)
             try:
-                # Preparar los campos y valores para la inserción
-                fields = ["id", "enum_order_table", "product_id", "product_name", 
-                          "quantity", "details", "state", "address", "user_name", "user_id",
-                          "created_at", "updated_at","observaciones"]
+                order["created_at"] = datetime.now()
+                order["updated_at"] = datetime.now()
                 
-                # Agregar campos opcionales si existen
-                if "price" in order:
-                    fields.append("price")
-                if "restaurant_id" in order:
-                    fields.append("restaurant_id")
+                query = """
+                INSERT INTO orders 
+                (id, enum_order_table, product_id, product_name, quantity, price, details, state, address, user_name, restaurant_id, user_id, observaciones, adicion, created_at, updated_at) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
                 
-                # Crear placeholders para la consulta SQL
-                placeholders = ", ".join(["%s"] * len(fields))
-                fields_str = ", ".join(fields)
+                values = (
+                    order["id"],
+                    order["enum_order_table"],
+                    order["product_id"],
+                    order["product_name"],
+                    order["quantity"],
+                    order["price"],
+                    order.get("details", None),
+                    order["state"],
+                    order["address"],
+                    order["user_name"],
+                    order["restaurant_id"],
+                    order.get("user_id", None),
+                    order.get("observaciones", None),
+                    order.get("adicion", None),
+                    order["created_at"],
+                    order["updated_at"]
+                )
                 
-                # Preparar valores para la inserción
-                values = []
-                for field in fields:
-                    if field == "created_at":
-                        values.append(created_at)
-                    elif field == "updated_at":
-                        values.append(updated_at)
-                    else:
-                        values.append(order.get(field, None))
-                
-                # Ejecutar la inserción
-                query = f"INSERT INTO orders ({fields_str}) VALUES ({placeholders})"
                 cursor.execute(query, values)
                 self.connection.commit()
                 
-                # Recuperar el pedido insertado
-                cursor.execute("SELECT * FROM orders WHERE id = %s", (order["id"],))
-                created_order = cursor.fetchone()
+                # Convert datetime objects to isoformat strings for consistency
+                order["created_at"] = order["created_at"].isoformat()
+                order["updated_at"] = order["updated_at"].isoformat()
                 
-                logging.info("Pedido creado con id: %s", created_order.get("id"))
-                return created_order
+                logging.info("Orden creada: %s", order["id"])
+                return order
             except Error as err:
-                logging.exception("Error al crear el pedido: %s", err)
+                logging.exception("Error al crear orden: %s", err)
                 return None
             finally:
                 cursor.close()
         except Exception as e:
-            logging.exception("Error general al crear el pedido: %s", e)
+            logging.exception("Error general al crear orden: %s", e)
             return None
     
     async def get_order(self, order_id: str, partition_key: Optional[str] = None) -> Optional[Dict[str, Any]]:
