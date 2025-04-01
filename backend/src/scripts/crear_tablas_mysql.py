@@ -37,6 +37,8 @@ def create_tables():
                 quantity INT NOT NULL,
                 unit VARCHAR(50) NOT NULL,
                 price FLOAT,
+                descripcion TEXT,
+                tipo_producto ENUM('menu', 'adicion') DEFAULT 'menu',
                 last_updated DATETIME NOT NULL,
                 INDEX (restaurant_id)
             )
@@ -59,7 +61,7 @@ def create_tables():
                 user_id VARCHAR(255),
                 restaurant_id VARCHAR(255) DEFAULT 'go_papa',
                 observaciones TEXT,
-                adicion TEXT
+                adicion TEXT,
                 created_at DATETIME NOT NULL,
                 updated_at DATETIME NOT NULL,
                 INDEX (enum_order_table),
