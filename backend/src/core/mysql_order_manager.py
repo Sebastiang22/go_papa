@@ -112,7 +112,7 @@ class MySQLOrderManager:
                 # Preparar los campos y valores para la inserción
                 fields = ["id", "enum_order_table", "product_id", "product_name", 
                           "quantity", "details", "state", "address", "user_name", "user_id",
-                          "created_at", "updated_at"]
+                          "created_at", "updated_at","observaciones"]
                 
                 # Agregar campos opcionales si existen
                 if "price" in order:

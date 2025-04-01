@@ -1,3 +1,13 @@
+import sys
+import os
+from pathlib import Path
+
+# Añadir el directorio src al PYTHONPATH
+script_dir = Path(__file__).parent
+src_dir = script_dir.parent
+sys.path.insert(0, str(src_dir))
+
+# Ahora las importaciones funcionarán
 import logging
 from mysql.connector import Error
 import mysql.connector
@@ -48,6 +58,8 @@ def create_tables():
                 user_name VARCHAR(255),
                 user_id VARCHAR(255),
                 restaurant_id VARCHAR(255) DEFAULT 'go_papa',
+                observaciones TEXT,
+                adicion TEXT
                 created_at DATETIME NOT NULL,
                 updated_at DATETIME NOT NULL,
                 INDEX (enum_order_table),

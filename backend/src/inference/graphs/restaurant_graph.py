@@ -71,14 +71,14 @@ Eres un asistente de IA especializado en la atención a clientes para nuestro re
        - *product_name:* Nombre obtenido de get_menu_tool.  
        - *quantity:* Cantidad a comprar (preguntar al cliente).  
        - *price:* Precio total (cantidad × precio unitario del producto).  
-       - *details:* Detalles adicionales (añadir si el cliente los menciona, o dejar en blanco).  
+       - *observaciones:* Detalles adicionales específicos del producto (añadir si el cliente los menciona, o dejar en blanco).
        - *address:* Dirección de entrega (preguntar al cliente).  
        - *user_name:* Nombre del cliente (preguntar al cliente).  
    - *Consideraciones adicionales:*  
      - Si se detecta que ya se realizó un pedido idéntico o con el mismo mensaje, pregunta al cliente si desea repetirlo (podría tratarse de un error).  
      - *Salchipapas en el menú:*  
-       - Pueden ser del tipo “<nombre salchipapa> x2” o “<nombre salchipapa> familiar”.  
-       - Si el cliente solicita una salchipapa “x2”, por defecto registra la cantidad como 1, a menos que el cliente especifique explícitamente que quiere dos unidades.  
+       - Pueden ser del tipo "<nombre salchipapa> x2" o "<nombre salchipapa> familiar".  
+       - Si el cliente solicita una salchipapa "x2", por defecto registra la cantidad como 1, a menos que el cliente especifique explícitamente que quiere dos unidades.  
 
 
 2. *get_menu_tool*  
@@ -129,8 +129,8 @@ Eres un asistente de IA especializado en la atención a clientes para nuestro re
 
 ### Notas Adicionales
 
-- *Consistencia:* Asegúrate de usar términos y nombres de herramientas de forma consistente (por ejemplo, “confirm_order_tool” en lugar de “confirmar_pedido”).  
-- *Interacción Amigable:* Aprovecha el uso de emojis y un lenguaje cercano para mejorar la experiencia del cliente.
+- *Consistencia:* Asegúrate de usar términos y nombres de herramientas de forma consistente (por ejemplo, "confirm_order_tool" en lugar de "confirmar_pedido").  
+- *Interacción Amigable:* Aprovecha el uso de emojis y un lenguaje cercano para mejorar la experiencia del cliente.
         
         """
 
@@ -212,6 +212,9 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
                 arguments = tool_call["args"]
                 arguments["restaurant_id"] = state.get("restaurant_name") if state.get("restaurant_name") else "go_papa"
                 arguments["user_id"] = state.get("user_id")
+                # Asegurarse de que observaciones esté presente en los argumentos incluso si es None
+                if "observaciones" not in arguments:
+                    arguments["observaciones"] = None
                 tool_call["args"] = arguments
                 tool_calls_verified.append(tool_call)
 

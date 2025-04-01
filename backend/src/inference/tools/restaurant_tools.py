@@ -39,7 +39,8 @@ async def confirm_order_tool(
     user_name: Optional[str],
     details: Optional[str],
     restaurant_id: str = "go_papa",
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None,
+    observaciones: Optional[str] = None
     ) -> Optional[str]:
     """
     Realiza un pedido de un producto y lo guarda en MySQL.
@@ -114,7 +115,7 @@ async def confirm_order_tool(
         "product_id": product_id,
         "product_name": product_name,
         "quantity": quantity,
-        "details": details,
+        "observaciones": details,
         "price": price,
         "state": state,
         "address": address,
