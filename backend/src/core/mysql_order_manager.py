@@ -312,46 +312,56 @@ class MySQLOrderManager:
             pool = await self.db_pool.get_pool()
             
             async with pool.acquire() as conn:
-                async with conn.cursor(aiomysql.DictCursor) as cursor:
-                    try:
+                try:
+                    # Establecer nivel de aislamiento antes de iniciar la transacción
+                    async with conn.cursor() as isolation_cursor:
+                        await isolation_cursor.execute("SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+                    
+                    # Iniciar transacción explícita después de configurar el nivel de aislamiento
+                    await conn.begin()
+                    
+                    async with conn.cursor(aiomysql.DictCursor) as cursor:
                         # Obtener la fecha actual en formato UTC
                         today = datetime.now().date()
                         today_start = datetime.combine(today, datetime.min.time())
                         today_end = datetime.combine(today, datetime.max.time())
-
-                        # Consultar todos los pedidos de hoy
+                        
+                        # Obtener todos los pedidos y procesarlos en memoria
                         await cursor.execute("""
-                            SELECT DISTINCT enum_order_table 
-                            FROM orders 
+                            SELECT * FROM orders 
                             WHERE created_at BETWEEN %s AND %s 
                             AND state != 'pagado'
+                            ORDER BY enum_order_table, created_at ASC
                         """, (today_start, today_end))
                         
-                        distinct_orders = await cursor.fetchall()
-                        orders_list = []
+                        all_orders = await cursor.fetchall()
+                        
+                        # Commit la transacción explícitamente
+                        await conn.commit()
+                        
+                        # Procesar los resultados en memoria para evitar más consultas
+                        orders_by_group = {}
+                        
+                        # Agrupar pedidos por enum_order_table
+                        for order in all_orders:
+                            enum_order_table = order['enum_order_table']
+                            if enum_order_table not in orders_by_group:
+                                orders_by_group[enum_order_table] = []
+                            orders_by_group[enum_order_table].append(order)
                         
                         # Estadísticas
-                        total_orders = 0
+                        total_orders = len(orders_by_group)
                         pending_orders = 0
                         complete_orders = 0
                         total_sales = 0.0
                         
-                        # Procesar cada grupo de pedidos
-                        for order_group in distinct_orders:
-                            enum_order_table = order_group['enum_order_table']
-                            
-                            # Obtener todos los pedidos del grupo
-                            await cursor.execute("""
-                                SELECT * FROM orders 
-                                WHERE enum_order_table = %s 
-                                ORDER BY created_at ASC
-                            """, (enum_order_table,))
-                            
-                            orders_in_group = await cursor.fetchall()
+                        # Construir la lista de pedidos consolidados
+                        orders_list = []
+                        
+                        for enum_order_table, orders_in_group in orders_by_group.items():
                             if not orders_in_group:
                                 continue
                             
-                            # Construir el pedido consolidado
                             first_order = orders_in_group[0]
                             last_order = orders_in_group[-1]
                             
@@ -382,7 +392,6 @@ class MySQLOrderManager:
                                 order_total += product_total
                             
                             # Actualizar estadísticas
-                            total_orders += 1
                             if consolidated_order["state"] == "pendiente":
                                 pending_orders += 1
                             elif consolidated_order["state"] == "completado":
@@ -404,9 +413,11 @@ class MySQLOrderManager:
                         
                         return result
                         
-                    except Error as err:
-                        logging.exception("Error al recuperar los pedidos del día: %s", err)
-                        return {"stats": {"total_orders": 0, "pending_orders": 0, "complete_orders": 0, "total_sales": 0}, "orders": []}
+                except Error as err:
+                    # Revertir la transacción en caso de error
+                    await conn.rollback()
+                    logging.exception("Error al recuperar los pedidos del día: %s", err)
+                    return {"stats": {"total_orders": 0, "pending_orders": 0, "complete_orders": 0, "total_sales": 0}, "orders": []}
         except Exception as e:
             logging.exception("Error general al recuperar los pedidos del día: %s", e)
             return {"stats": {"total_orders": 0, "pending_orders": 0, "complete_orders": 0, "total_sales": 0}, "orders": []}

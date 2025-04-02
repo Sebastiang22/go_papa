@@ -1,4 +1,3 @@
-
 from typing import List
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from core.schema_http import (
@@ -16,8 +15,6 @@ from core.utils import extract_text_content,extract_word_content,extract_excel_c
 # from core.schema_services import AzureServices
 from inference.graphs.mysql_saver import MySQLSaver
 from core.mysql_order_manager import MySQLOrderManager
-# from enviar_mensaje import ClienteWhatsApp
-import aiohttp
 import os
 
 chat_agent_router = APIRouter()

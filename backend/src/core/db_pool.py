@@ -40,9 +40,12 @@ class DBConnectionPool:
                         password=settings.db_password,
                         db=settings.db_database,
                         autocommit=False,
-                        maxsize=25,  # Límite máximo de conexiones en el pool
-                        minsize=5,   # Mínimo de conexiones para mantener abiertos
-                        pool_recycle=1800  # Reciclar conexiones cada 30 minutos
+                        maxsize=30,  # Aumentado de 25 a 30 para manejar más conexiones
+                        minsize=10,  # Aumentado de 5 a 10 para tener más conexiones pre-calentadas
+                        pool_recycle=1200,  # Reducido de 1800 a 1200 para reciclar conexiones cada 20 minutos
+                        echo=True,  # Activar logging de consultas SQL para debugging
+                        charset='utf8mb4',  # Soporte para caracteres Unicode completo
+                        connect_timeout=10.0  # Timeout para conexiones
                     )
                     self._pool_initialized = True
                     logging.info("Pool de conexiones MySQL creado correctamente")

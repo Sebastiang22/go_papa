@@ -7,7 +7,7 @@ from core.schema_http import Product, AddProductRequest, UpdateProductRequest, D
 # Import the MySQL inventory manager
 from core.mysql_inventory_manager import MySQLInventoryManager
 
-# Instancia del administrador de inventario
+# Instancia del administrador de inventario - ya está correctamente como una instancia global
 inventory_manager = MySQLInventoryManager()
 
 # Definición de modelos Pydantic para las solicitudes y respuestas

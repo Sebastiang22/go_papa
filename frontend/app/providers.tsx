@@ -5,14 +5,6 @@ import { Toaster } from "@/components/toaster";
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Order, BackendData } from "@/lib/types";
 import { apiClient } from "@/lib/api/http/client";
-import {
-  subscribeToOrdersUpdate,
-  subscribeToOrderDeleted,
-  subscribeToOrderUpdated,
-  subscribeToOrderCreated,
-  initializeSocket,
-  closeSocket
-} from "@/lib/api/socket/client";
 
 // Interfaz del contexto de órdenes
 interface OrdersContextType {
@@ -26,8 +18,6 @@ interface OrdersContextType {
   isLoading: boolean;
   error: string | null;
   lastUpdated: Date | null;
-  isConnected: boolean;
-  clientCount: number;
   refreshOrders: () => Promise<void>;
   updateOrderStatus: (orderId: string, newStatus: string) => Promise<void>;
   deleteOrder: (orderId: string) => Promise<void>;
@@ -40,8 +30,6 @@ const OrdersContext = createContext<OrdersContextType>({
   isLoading: false,
   error: null,
   lastUpdated: null,
-  isConnected: false,
-  clientCount: 0,
   refreshOrders: async () => {},
   updateOrderStatus: async () => {},
   deleteOrder: async () => {},
@@ -60,8 +48,6 @@ export function OrdersProvider({ children }: OrdersProviderProps) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [isConnected, setIsConnected] = useState<boolean>(false);
-  const [clientCount, setClientCount] = useState<number>(0);
 
   // Función para cargar órdenes
   const refreshOrders = async () => {
@@ -105,6 +91,9 @@ export function OrdersProvider({ children }: OrdersProviderProps) {
           stats: statsUpdate
         });
       }
+      
+      // Actualizar datos después de la operación
+      refreshOrders();
     } catch (err) {
       console.error("Error al actualizar estado:", err);
       // Recargar datos para revertir cambios optimistas incorrectos
@@ -128,6 +117,9 @@ export function OrdersProvider({ children }: OrdersProviderProps) {
           // Actualizar estadísticas...
         });
       }
+      
+      // Actualizar datos después de la operación
+      refreshOrders();
     } catch (err) {
       console.error("Error al eliminar orden:", err);
       // Recargar datos para revertir cambios optimistas incorrectos
@@ -136,59 +128,19 @@ export function OrdersProvider({ children }: OrdersProviderProps) {
     }
   };
 
-  // Inicializar websockets y suscripciones
+  // Inicializar y cargar los datos periódicamente
   useEffect(() => {
-    // Inicializar socket
-    initializeSocket();
-    
-    // Suscribirse a eventos
-    const unsubscribeOrdersUpdate = subscribeToOrdersUpdate(() => {
-      refreshOrders();
-    });
-    
-    const unsubscribeOrderDeleted = subscribeToOrderDeleted((orderId) => {
-      // Actualización optimista
-      if (backendData) {
-        const updatedOrders = backendData.orders.filter(order => order.id !== orderId);
-        setBackendData({
-          ...backendData,
-          orders: updatedOrders,
-        });
-      }
-      refreshOrders(); // Actualizar datos completos
-    });
-    
-    const unsubscribeOrderUpdated = subscribeToOrderUpdated((orderId, newState) => {
-      // Actualización optimista
-      if (backendData) {
-        const updatedOrders = backendData.orders.map(order => {
-          if (order.id === orderId) {
-            return { ...order, state: newState };
-          }
-          return order;
-        });
-        setBackendData({
-          ...backendData,
-          orders: updatedOrders,
-        });
-      }
-      refreshOrders(); // Actualizar datos completos
-    });
-    
-    const unsubscribeOrderCreated = subscribeToOrderCreated(() => {
-      refreshOrders(); // Actualizar datos completos
-    });
-    
     // Cargar órdenes iniciales
     refreshOrders();
     
-    // Limpiar suscripciones al desmontar
+    // Configurar actualización periódica cada 30 segundos
+    const intervalId = setInterval(() => {
+      refreshOrders();
+    }, 30000);
+    
+    // Limpiar intervalo al desmontar
     return () => {
-      unsubscribeOrdersUpdate();
-      unsubscribeOrderDeleted();
-      unsubscribeOrderUpdated();
-      unsubscribeOrderCreated();
-      closeSocket();
+      clearInterval(intervalId);
     };
   }, []);
 
@@ -199,8 +151,6 @@ export function OrdersProvider({ children }: OrdersProviderProps) {
     isLoading,
     error,
     lastUpdated,
-    isConnected,
-    clientCount,
     refreshOrders,
     updateOrderStatus,
     deleteOrder,
