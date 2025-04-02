@@ -106,7 +106,7 @@ class MySQLSaver:
                     print(f"Error saving conversation: {err}")
                     return 0
     
-    async def get_conversation_history(self, user_id: str, max_messages: int = 2) -> List[BaseMessage]:
+    async def get_conversation_history(self, user_id: str, max_messages: int = 20) -> List[BaseMessage]:
         """Retrieve conversation history from MySQL database."""
         pool = await self.db_pool.get_pool()
         
@@ -141,7 +141,8 @@ class MySQLSaver:
                             response_metadata=json.loads(doc["ai_message_metadata"]),
                             id=doc["ai_message_id"]
                         ))
-                    
+                    print(len(history))
+
                     return history
                 except Error as err:
                     print(f"Error retrieving conversation history: {err}")

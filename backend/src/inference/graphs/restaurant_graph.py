@@ -92,7 +92,7 @@ Eres un asistente de IA especializado en la atención a clientes para nuestro re
        - *product_name:* Nombre obtenido de get_menu_tool.  
        - *quantity:* Cantidad a comprar (preguntar al cliente).  
        - *price:* Precio total (cantidad × precio unitario del producto + suma de precios de todas las adiciones solicitadas).  
-       - *details:* Detalles específicos del pedido (añadir si el cliente los menciona, o dejar en blanco).
+       - *observaciones:* Detalles específicos del pedido (añadir si el cliente los menciona, o dejar en blanco).
        - *address:* Dirección de entrega (preguntar al cliente).  
        - *user_name:* Nombre del cliente (preguntar al cliente).  
        - *adicion:* Parámetro **OBLIGATORIO** si el cliente pidió adiciones. Debe contener todas las adiciones solicitadas con formato: "Nombre adición ($precio) x cantidad, Otra adición ($precio) x cantidad".
@@ -204,7 +204,6 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
     llm_with_tools = llm_raw.bind_tools(
     tools=[confirm_order_tool, get_menu_tool, get_order_status_tool, send_menu_pdf_tool, get_adiciones_tool]
         )
-
     # 2) Usar ainvoke en lugar de invoke para un procesamiento verdaderamente asíncrono
     response_msg = await llm_with_tools.ainvoke(new_messages)
     
@@ -365,6 +364,7 @@ class RestaurantChatAgent:
         history_messages = await self.mysql_saver.get_conversation_history(
             user_id
         )
+
         # 2. Construir lista de mensajes completa
         new_human_message = HumanMessage(
             content=user_input,
@@ -397,7 +397,7 @@ class RestaurantChatAgent:
             conversation_name=conversation_name,
             user_id=user_id
         )
-
+        
         # Return properly typed RestaurantState and string ID
         return RestaurantState(messages=new_state["messages"],
                              thread_id=conversation_id,
@@ -437,6 +437,9 @@ async def parallel_tools_node(state: RestaurantState) -> RestaurantState:
             tool_call_indices.append(i)
         elif tool_name == "send_menu_pdf_tool":
             tasks.append(send_menu_pdf_tool(**tool_args))
+            tool_call_indices.append(i)
+        elif tool_name == "get_adiciones_tool":
+            tasks.append(get_adiciones_tool(**tool_args))
             tool_call_indices.append(i)
     
     # Ejecutar todas las herramientas en paralelo

@@ -77,7 +77,7 @@ class MySQLOrderManager:
                     try:
                         # Preparar los campos y valores para la inserción
                         fields = ["id", "enum_order_table", "product_id", "product_name", 
-                                "quantity", "details", "state", "address", "user_name", "user_id",
+                                "quantity", "state", "address", "user_name", "user_id",
                                 "created_at", "updated_at"]
                         
                         # Agregar campos opcionales si existen
@@ -85,6 +85,10 @@ class MySQLOrderManager:
                             fields.append("price")
                         if "restaurant_id" in order:
                             fields.append("restaurant_id")
+                        if "observaciones" in order:
+                            fields.append("observaciones")
+                        if "adicion" in order:
+                            fields.append("adicion")
                         
                         # Crear placeholders para la consulta SQL
                         placeholders = ", ".join(["%s"] * len(fields))
