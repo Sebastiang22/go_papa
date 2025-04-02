@@ -79,21 +79,16 @@ export function useRealTimeOrders({
 
   // Efecto para inicializar y mantener actualizados los datos
   useEffect(() => {
-    console.log('🔄 Inicializando sistema de actualización manual...');
+    console.log('🔄 Inicializando carga de datos...');
     
     // Cargar datos iniciales
     fetchData();
     
-    // Configurar actualización periódica cada 30 segundos
-    const intervalId = setInterval(() => {
-      console.log('🔄 Actualización periódica de datos...');
-      fetchData();
-    }, 30000);
+    // Se eliminó la actualización periódica
     
-    // Limpieza al desmontar
+    // Limpieza al desmontar (ya no es necesaria)
     return () => {
-      console.log('🧹 Limpiando sistema de actualización...');
-      clearInterval(intervalId);
+      console.log('🧹 Limpiando recursos...');
     };
   }, [fetchData]);
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -49,7 +49,18 @@ const formatDate = (dateString: string) => {
 export function OrderModal({ order, open, onOpenChange, onStatusUpdate, onDeleteOrder, isUpdating = false }: OrderModalProps) {
   if (!order) return null
 
-  const statusColors = {
+  // Crear un estado local para el orden actual que se actualice cuando cambie el prop order
+  const [currentOrderState, setCurrentOrderState] = useState(order.state);
+  
+  // Actualizar el estado local cuando cambie el orden externo
+  useEffect(() => {
+    if (order) {
+      setCurrentOrderState(order.state);
+    }
+  }, [order, order.state]);
+
+  // Definir los colores con type safety
+  const statusColors: Record<string, string> = {
     pendiente: "bg-yellow-500",
     "en preparación": "bg-blue-500",
     completado: "bg-green-500",
@@ -57,13 +68,16 @@ export function OrderModal({ order, open, onOpenChange, onStatusUpdate, onDelete
   
   const handleStatusChange = async (value: string) => {
     try {
-      await onStatusUpdate(order.id, value)
-      // No necesitamos hacer nada más aquí, ya que el componente Dashboard
-      // se encargará de recargar los datos y actualizar el estado
+      // Actualizar inmediatamente el estado local para actualizar la UI
+      setCurrentOrderState(value);
+      
+      // Llamar a la función para actualizar en el backend
+      await onStatusUpdate(order.id, value);
     } catch (err) {
-      console.error("Error updating order status:", err)
-      // Recargar datos en caso de error para revertir cambios optimistas incorrectos
-      await onStatusUpdate(order.id, order.state)
+      console.error("Error updating order status:", err);
+      // Revertir al estado original en caso de error
+      setCurrentOrderState(order.state);
+      await onStatusUpdate(order.id, order.state);
     }
   }
 
@@ -78,8 +92,8 @@ export function OrderModal({ order, open, onOpenChange, onStatusUpdate, onDelete
         <DialogHeader>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <DialogTitle className="text-xl">Pedido #{order.id}</DialogTitle>
-            <Badge className={`${statusColors[order.state] || "bg-gray-500"} whitespace-nowrap`}>
-              {order.state.charAt(0).toUpperCase() + order.state.slice(1)}
+            <Badge className={`${statusColors[currentOrderState] || "bg-gray-500"} whitespace-nowrap`}>
+              {currentOrderState.charAt(0).toUpperCase() + currentOrderState.slice(1)}
             </Badge>
           </div>
           <DialogDescription>Detalles y gestión del pedido</DialogDescription>
@@ -127,14 +141,14 @@ export function OrderModal({ order, open, onOpenChange, onStatusUpdate, onDelete
               <span>Estado del pedido</span>
             </div>
             <Select 
-              defaultValue={order.state} 
+              value={currentOrderState}
               onValueChange={handleStatusChange}
               disabled={isUpdating}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar estado">
                   {isUpdating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  {order.state.charAt(0).toUpperCase() + order.state.slice(1)}
+                  {currentOrderState.charAt(0).toUpperCase() + currentOrderState.slice(1)}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -217,7 +231,7 @@ export function OrderModal({ order, open, onOpenChange, onStatusUpdate, onDelete
           <Button
             className="w-full"
             onClick={() => onStatusUpdate(order.id, "completado")}
-            disabled={isUpdating || order.state === "completado"}
+            disabled={isUpdating || currentOrderState === "completado"}
           >
             {isUpdating ? (
               <>

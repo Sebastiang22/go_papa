@@ -133,14 +133,11 @@ export function OrdersProvider({ children }: OrdersProviderProps) {
     // Cargar órdenes iniciales
     refreshOrders();
     
-    // Configurar actualización periódica cada 30 segundos
-    const intervalId = setInterval(() => {
-      refreshOrders();
-    }, 30000);
+    // Eliminamos la actualización periódica para evitar solicitudes cada 30 segundos
     
-    // Limpiar intervalo al desmontar
+    // No es necesario hacer limpieza ya que no hay intervalo
     return () => {
-      clearInterval(intervalId);
+      // Función de limpieza vacía
     };
   }, []);
 

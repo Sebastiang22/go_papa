@@ -127,7 +127,7 @@ export default function Dashboard() {
         const updatedOrders = backendData.orders.map(order => {
           if (order.id === orderId) {
             previousState = order.state;
-            return { ...order, state: newStatus };
+            return { ...order, state: newStatus, updated_at: new Date().toISOString() };
           }
           return order;
         });
@@ -149,6 +149,19 @@ export default function Dashboard() {
             statsUpdate.pending_orders += 1;
             statsUpdate.complete_orders -= 1;
           }
+          // Si el estado cambia desde o hacia "en preparación"
+          else if (previousState === 'pendiente' && newStatus === 'en preparación') {
+            statsUpdate.pending_orders -= 1;
+          }
+          else if (previousState === 'en preparación' && newStatus === 'pendiente') {
+            statsUpdate.pending_orders += 1;
+          }
+          else if (previousState === 'en preparación' && newStatus === 'completado') {
+            statsUpdate.complete_orders += 1;
+          }
+          else if (previousState === 'completado' && newStatus === 'en preparación') {
+            statsUpdate.complete_orders -= 1;
+          }
           
           return {
             ...prev,
@@ -160,7 +173,11 @@ export default function Dashboard() {
         // Si el modal está abierto y el pedido actualizado es el que se está viendo,
         // actualiza el pedido seleccionado con el nuevo estado
         if (selectedOrder && selectedOrder.id === orderId) {
-          setSelectedOrder(prev => prev ? { ...prev, state: newStatus } : null);
+          setSelectedOrder(prev => prev ? { 
+            ...prev, 
+            state: newStatus,
+            updated_at: new Date().toISOString()
+          } : null);
         }
       }
       
@@ -178,9 +195,6 @@ export default function Dashboard() {
         const errorData = await response.json();
         throw new Error(errorData.detail || `Error: ${response.status}`);
       }
-      
-      // No recargar todos los datos, mantener la actualización optimista
-      // que ya hicimos anteriormente
       
       // Mostrar notificación de éxito
       toast({
@@ -300,17 +314,16 @@ export default function Dashboard() {
 
   // Configurar intervalo de actualización
   useEffect(() => {
+    // Cargar datos inicialmente
     fetchData();
     
-    const intervalId = setInterval(() => {
-      // Solo actualizar los datos si el modal no está abierto
-      if (!isModalOpen) {
-        fetchData();
-      }
-    }, 10000); // Actualizar cada 10 segundos
+    // Eliminamos el intervalo de actualización automática para evitar solicitudes periódicas
+    // No es necesario hacer ninguna limpieza ya que no hay intervalos que cancelar
     
-    return () => clearInterval(intervalId);
-  }, [fetchData, isModalOpen]);
+    return () => {
+      // Función de limpieza vacía
+    };
+  }, [fetchData]);
 
   if (error) {
     return (
