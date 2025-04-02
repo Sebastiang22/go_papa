@@ -7,10 +7,20 @@ from api.chat_agent import chat_agent_router
 from api.orders import orders_router
 from api.inventory_router import inventory_router
 from core.db_pool import DBConnectionPool
+from core.auth_middleware import auth_middleware
 
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 import logging
+
+from api.auth import router as auth_router
+
+# Configuración de logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+)
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -29,6 +39,9 @@ async def lifespan(app: FastAPI):
     logging.info("Aplicación finalizada correctamente")
 
 app = FastAPI(title="TARS Agents Graphs", lifespan=lifespan, root_path="/api")
+
+# Añadir middleware de autenticación
+app.middleware("http")(auth_middleware)
 
 @app.middleware("http")
 async def no_cache_middleware(request: Request, call_next):
@@ -52,7 +65,7 @@ app.add_middleware(
 app.include_router(chat_agent_router, prefix="/agent/chat", tags=["RestaurantsAgents"])
 app.include_router(inventory_router, prefix="/inventory/stock", tags=["StockRestaurants"])
 app.include_router(orders_router, prefix="/orders", tags=["Orders"])
-# app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 
 # Montar archivos estáticos (si es necesario)
 # app.mount("/", StaticFiles(directory="./dist", html=True), name="static")

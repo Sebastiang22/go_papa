@@ -1,6 +1,7 @@
 /**
  * Cliente HTTP para comunicación con el backend
  */
+import { authService } from '../auth/authService';
 
 // URL base del API, tomada de variables de entorno o valor por defecto
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
@@ -32,6 +33,17 @@ async function fetchWithTimeout(
   const timeoutId = setTimeout(() => controller.abort(), timeout);
   
   try {
+    // Añadir token de autenticación si existe y no se especifica en las opciones
+    if (!fetchOptions.headers || !('Authorization' in fetchOptions.headers)) {
+      const token = authService.getAuthToken();
+      if (token) {
+        fetchOptions.headers = {
+          ...fetchOptions.headers,
+          'Authorization': `Bearer ${token}`
+        };
+      }
+    }
+    
     const response = await fetch(url, {
       ...fetchOptions,
       signal: controller.signal,
@@ -46,6 +58,11 @@ async function fetchWithTimeout(
           statusCode: response.status,
           message: response.statusText || 'Error de servidor desconocido'
         };
+      }
+      
+      // Si hay un error de autenticación (401), intentar cerrar sesión
+      if (response.status === 401) {
+        authService.logout();
       }
       
       throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
