@@ -37,7 +37,7 @@ async def confirm_order_tool(
     address: str,
     price: float,
     user_name: Optional[str],
-    details: Optional[str],
+    observaciones: Optional[str] = None,
     restaurant_id: str = "go_papa",
     user_id: Optional[str] = None,
     adicion: Optional[str] = None
@@ -52,7 +52,7 @@ async def confirm_order_tool(
         address (str): Dirección de entrega del pedido.
         price (float): Precio del producto.
         user_name (Optional[str]): Nombre del usuario que realiza el pedido.
-        details (Optional[str]): Obsevaciones del pedido.
+        observaciones (Optional[str]): Observaciones o detalles adicionales del pedido.
         restaurant_id (str): Identificador del restaurante. Por defecto "go_papa".
         user_id (Optional[str]): Identificador del usuario que realiza el pedido.
         adicion (Optional[str]): Información sobre adiciones solicitadas para el pedido.
@@ -60,7 +60,7 @@ async def confirm_order_tool(
     Retorna:
         Optional[str]: Mensaje de confirmación si el pedido se realiza con éxito, o None en caso de error.
     """
-    print(f"\033[92m\nconfirm_order_tool activada \nid: {genereta_id()}\nenum_order_table: {1}\nproduct_id: {product_id}\naddress: {address}\nproduct_name: {product_name}\nquantity: {quantity}\nprice: {price}\nuser_name: {user_name}\nstate: {'pendiente'}\nrestaurant_id: {restaurant_id}\nuser_id: {user_id}\ndetails: {details}\nadicion: {adicion}\033[0m")
+    print(f"\033[92m\nconfirm_order_tool activada \nid: {genereta_id()}\nenum_order_table: {1}\nproduct_id: {product_id}\naddress: {address}\nproduct_name: {product_name}\nquantity: {quantity}\nprice: {price}\nuser_name: {user_name}\nstate: {'pendiente'}\nrestaurant_id: {restaurant_id}\nuser_id: {user_id}\nobservaciones: {observaciones}\nadicion: {adicion}\033[0m")
     
     order_id = genereta_id()
     # Crear una única instancia de MySQLOrderManager
@@ -110,7 +110,7 @@ async def confirm_order_tool(
         f"state: {state}\n"
         f"restaurant_id: {restaurant_id}\n"
         f"user_id: {user_id}\n"
-        f"details: {details}\n"
+        f"observaciones: {observaciones}\n"
         f"adicion: {adicion}\033[0m"
     )
     order = {
@@ -119,7 +119,7 @@ async def confirm_order_tool(
         "product_id": product_id,
         "product_name": product_name,
         "quantity": quantity,
-        "observaciones": details,
+        "observaciones": observaciones,
         "price": price,
         "state": state,
         "address": address,
@@ -237,12 +237,17 @@ async def get_adiciones_tool(restaurant_name: str = "go_papa") -> List[Dict[str,
     """
     print(f"\033[92m\nget_adiciones_tool activada \nrestaurant_name: {restaurant_name}\033[0m")
     
-    inventory_manager = MySQLInventoryManager()
-    adiciones = await inventory_manager.get_adiciones(restaurant_name)
-    
-    print(f"Se encontraron {len(adiciones)} adiciones disponibles")
-    # Imprimir detalles de las adiciones para debug
-    for adicion in adiciones:
-        print(f"  - {adicion['name']}: ${adicion['price']} ({adicion['descripcion']})")
-    
-    return adiciones
+    try:
+        inventory_manager = MySQLInventoryManager()
+        adiciones = await inventory_manager.get_adiciones(restaurant_name)
+        
+        print(f"Se encontraron {len(adiciones)} adiciones disponibles")
+        # Imprimir detalles de las adiciones para debug
+        for adicion in adiciones:
+            print(f"\033 - {adicion['name']}: ${adicion['price']} ({adicion['descripcion']})\033")
+        
+        return adiciones
+    except Exception as e:
+        print(f"\033[91m Error en get_adiciones_tool: {str(e)}\033[0m")
+        # En caso de error, devolver una lista vacía pero no None
+        return []

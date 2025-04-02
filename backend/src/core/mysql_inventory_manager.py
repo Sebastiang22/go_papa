@@ -134,43 +134,38 @@ class MySQLInventoryManager:
             List[Dict[str, Any]]: Lista de adiciones del inventario.
         """
         try:
-            if self.connection is None or not self.connection.is_connected():
-                self._connect()
-                if self.connection is None or not self.connection.is_connected():
-                    logging.error("Failed to connect to MySQL database")
-                    return []
-            
-            cursor = self.connection.cursor(dictionary=True)
-            try:
-                if restaurant_id:
-                    query = """
-                    SELECT * FROM inventory 
-                    WHERE restaurant_id = %s AND tipo_producto = 'adicion'
-                    ORDER BY name
-                    """
-                    cursor.execute(query, (restaurant_id,))
-                else:
-                    query = """
-                    SELECT * FROM inventory 
-                    WHERE tipo_producto = 'adicion'
-                    ORDER BY restaurant_id, name
-                    """
-                    cursor.execute(query)
-                
-                adiciones = cursor.fetchall()
-                
-                # Format datetime to isoformat for consistent API
-                for adicion in adiciones:
-                    if "last_updated" in adicion and adicion["last_updated"]:
-                        adicion["last_updated"] = adicion["last_updated"].isoformat()
-                
-                logging.info("Obtenidas %d adiciones del inventario", len(adiciones))
-                return adiciones
-            except Error as err:
-                logging.exception("Error al obtener adiciones del inventario: %s", err)
-                return []
-            finally:
-                cursor.close()
+            pool = await self.db_pool.get_pool()
+
+            async with pool.acquire() as conn:
+                async with conn.cursor(aiomysql.DictCursor) as cursor:
+                    try:
+                        if restaurant_id:
+                            query = """
+                            SELECT * FROM inventory 
+                            WHERE restaurant_id = %s AND tipo_producto = 'adicion'
+                            ORDER BY name
+                            """
+                            await cursor.execute(query, (restaurant_id,))
+                        else:
+                            query = """
+                            SELECT * FROM inventory 
+                            WHERE tipo_producto = 'adicion'
+                            ORDER BY restaurant_id, name
+                            """
+                            await cursor.execute(query)
+                        
+                        adiciones = await cursor.fetchall()
+                        
+                        # Format datetime to isoformat for consistent API
+                        for adicion in adiciones:
+                            if "last_updated" in adicion and adicion["last_updated"]:
+                                adicion["last_updated"] = adicion["last_updated"].isoformat()
+                        
+                        logging.info("Obtenidas %d adiciones del inventario", len(adiciones))
+                        return adiciones
+                    except Error as err:
+                        logging.exception("Error al obtener adiciones del inventario: %s", err)
+                        return []
         except Exception as e:
             logging.exception("Error general al obtener adiciones del inventario: %s", e)
             return []
