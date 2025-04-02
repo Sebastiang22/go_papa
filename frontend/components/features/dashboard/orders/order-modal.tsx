@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -44,6 +45,16 @@ export function OrderModal({
 }: OrderModalProps) {
   if (!order) return null
 
+  // Estado local para controlar el estado actual del pedido
+  const [currentState, setCurrentState] = useState<string>(order.state)
+
+  // Sincronizar el estado local cuando cambia el pedido
+  useEffect(() => {
+    if (order) {
+      setCurrentState(order.state)
+    }
+  }, [order])
+
   const statusColors = {
     [OrderState.PENDING]: "bg-yellow-500",
     [OrderState.PREPARING]: "bg-blue-500",
@@ -52,8 +63,13 @@ export function OrderModal({
   
   const handleStatusChange = async (value: string) => {
     try {
+      // Actualizar el estado local inmediatamente
+      setCurrentState(value)
+      // Luego actualizar en el backend
       await onStatusUpdate(order.id, value)
     } catch (err) {
+      // Si hay error, revertir al estado anterior
+      setCurrentState(order.state)
       console.error("Error al actualizar estado:", err)
     }
   }
@@ -69,8 +85,8 @@ export function OrderModal({
         <DialogHeader>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <DialogTitle className="text-xl">Pedido #{order.id}</DialogTitle>
-            <Badge className={`${statusColors[order.state as OrderState] || "bg-gray-500"} whitespace-nowrap`}>
-              {order.state.charAt(0).toUpperCase() + order.state.slice(1)}
+            <Badge className={`${statusColors[currentState as OrderState] || "bg-gray-500"} whitespace-nowrap`}>
+              {currentState.charAt(0).toUpperCase() + currentState.slice(1)}
             </Badge>
           </div>
           <DialogDescription>Detalles y gestión del pedido</DialogDescription>
@@ -119,14 +135,14 @@ export function OrderModal({
               <span>Estado del pedido</span>
             </div>
             <Select 
-              defaultValue={order.state} 
+              value={currentState}
               onValueChange={handleStatusChange}
               disabled={isUpdating}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar estado">
                   {isUpdating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  {order.state.charAt(0).toUpperCase() + order.state.slice(1)}
+                  {currentState.charAt(0).toUpperCase() + currentState.slice(1)}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
