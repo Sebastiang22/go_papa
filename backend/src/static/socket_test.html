@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prueba de WebSocket</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .event-log {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            background-color: #f8f9fa;
+            margin-bottom: 20px;
+        }
+        .event {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        .event-time {
+            color: #6c757d;
+            font-size: 0.8em;
+        }
+        button {
+            padding: 8px 12px;
+            margin-right: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0069d9;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <h1>Prueba de WebSocket</h1>
+    
+    <div id="connectionStatus" class="status disconnected">
+        Desconectado
+    </div>
+    
+    <div>
+        <button id="connectButton">Conectar</button>
+        <button id="disconnectButton" disabled>Desconectar</button>
+    </div>
+    
+    <h2>Eventos recibidos</h2>
+    <div id="eventLog" class="event-log"></div>
+    
+    <h2>Acciones</h2>
+    <div>
+        <button id="checkStatusButton">Verificar Estado</button>
+    </div>
+    
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script>
+        // Elementos DOM
+        const statusEl = document.getElementById('connectionStatus');
+        const eventLogEl = document.getElementById('eventLog');
+        const connectButton = document.getElementById('connectButton');
+        const disconnectButton = document.getElementById('disconnectButton');
+        const checkStatusButton = document.getElementById('checkStatusButton');
+        
+        // Estado
+        let socket = null;
+        
+        // Función para añadir eventos al log
+        function logEvent(event, data) {
+            const eventEl = document.createElement('div');
+            eventEl.className = 'event';
+            
+            const time = new Date().toLocaleTimeString();
+            eventEl.innerHTML = `
+                <div class="event-time">${time}</div>
+                <strong>${event}</strong>: ${JSON.stringify(data)}
+            `;
+            
+            eventLogEl.prepend(eventEl);
+        }
+        
+        // Función para actualizar el estado de conexión
+        function updateConnectionStatus(isConnected) {
+            if (isConnected) {
+                statusEl.className = 'status connected';
+                statusEl.textContent = `Conectado (ID: ${socket.id})`;
+                connectButton.disabled = true;
+                disconnectButton.disabled = false;
+            } else {
+                statusEl.className = 'status disconnected';
+                statusEl.textContent = 'Desconectado';
+                connectButton.disabled = false;
+                disconnectButton.disabled = true;
+            }
+        }
+        
+        // Función para conectar
+        function connect() {
+            if (socket) {
+                socket.connect();
+                return;
+            }
+            
+            // Crear socket con opciones
+            socket = io('http://localhost:8000', {
+                transports: ['websocket', 'polling'],
+                path: '/api/socket.io/'
+            });
+            
+            // Eventos de conexión
+            socket.on('connect', () => {
+                logEvent('connect', { id: socket.id });
+                updateConnectionStatus(true);
+            });
+            
+            socket.on('disconnect', (reason) => {
+                logEvent('disconnect', { reason });
+                updateConnectionStatus(false);
+            });
+            
+            socket.on('connect_error', (error) => {
+                logEvent('connect_error', { message: error.message });
+            });
+            
+            // Eventos específicos de la aplicación
+            socket.on('connection_status', (data) => {
+                logEvent('connection_status', data);
+            });
+            
+            socket.on('orders_update', (data) => {
+                logEvent('orders_update', data);
+            });
+            
+            socket.on('order_deleted', (data) => {
+                logEvent('order_deleted', data);
+            });
+            
+            socket.on('order_updated', (data) => {
+                logEvent('order_updated', data);
+            });
+            
+            socket.on('order_created', (data) => {
+                logEvent('order_created', data);
+            });
+        }
+        
+        // Función para desconectar
+        function disconnect() {
+            if (socket) {
+                socket.disconnect();
+            }
+        }
+        
+        // Función para verificar el estado del servidor
+        async function checkStatus() {
+            try {
+                const response = await fetch('http://localhost:8000/api/orders/ws-status');
+                const data = await response.json();
+                logEvent('server_status', data);
+            } catch (error) {
+                logEvent('server_status_error', { message: error.message });
+            }
+        }
+        
+        // Event listeners
+        connectButton.addEventListener('click', connect);
+        disconnectButton.addEventListener('click', disconnect);
+        checkStatusButton.addEventListener('click', checkStatus);
+        
+        // Inicialmente desconectado
+        updateConnectionStatus(false);
+    </script>
+</body>
+</html> 
