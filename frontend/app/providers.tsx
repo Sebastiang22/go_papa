@@ -5,6 +5,7 @@ import { Toaster } from "@/components/toaster";
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Order, BackendData } from "@/lib/types";
 import { apiClient } from "@/lib/api/http/client";
+import { AuthProvider } from "@/lib/providers/auth-provider";
 
 // Interfaz del contexto de órdenes
 interface OrdersContextType {
@@ -160,10 +161,12 @@ export function OrdersProvider({ children }: OrdersProviderProps) {
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <OrdersProvider>
-        {children}
-        <Toaster />
-      </OrdersProvider>
+      <AuthProvider>
+        <OrdersProvider>
+          {children}
+          <Toaster />
+        </OrdersProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 } 
