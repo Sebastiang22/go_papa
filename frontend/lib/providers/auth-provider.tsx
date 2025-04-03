@@ -121,29 +121,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
   
   // Función para cerrar sesión
   const logout = useCallback(async () => {
+    // Primero, eliminar el estado de autenticación localmente
+    setAuthState({
+      isAuthenticated: false,
+      isLoading: false,
+      user: null,
+      error: null,
+    });
+    
     try {
-      await fetch(`${API_URL}/auth/logout`, {
+      // Intentar cerrar sesión en el backend (pero no esperar la respuesta)
+      fetch(`${API_URL}/auth/logout`, {
         method: 'GET',
         credentials: 'include',
+      }).catch(error => {
+        console.warn('Error al comunicarse con el servidor para cerrar sesión:', error);
+        // No afecta el flujo principal, ya cerramos sesión localmente
       });
       
-      setAuthState({
-        isAuthenticated: false,
-        isLoading: false,
-        user: null,
-        error: null,
-      });
-      
+      // Redirigir inmediatamente sin esperar la respuesta del backend
       router.push('/');
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
-      // Cerrar sesión localmente incluso si hay un error en el servidor
-      setAuthState({
-        isAuthenticated: false,
-        isLoading: false,
-        user: null,
-        error: 'Error al cerrar sesión',
-      });
+      // Incluso si hay un error, redirigir al usuario a la página de inicio
       router.push('/');
     }
   }, [router]);

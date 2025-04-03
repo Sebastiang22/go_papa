@@ -4,27 +4,31 @@ import { useAuth } from "@/lib/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { LoginButton } from "@/components/auth/login-button";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Spinner } from "@/components/ui/spinner";
 
 export default function HomePage() {
-  const { authState, logout } = useAuth();
+  const { authState, login } = useAuth();
   const router = useRouter();
+  const [isRedirecting, setIsRedirecting] = useState(false);
   
   // Redirigir al dashboard si ya está autenticado
   useEffect(() => {
     if (authState.isAuthenticated && !authState.isLoading) {
+      setIsRedirecting(true);
       router.push('/dashboard');
     }
   }, [authState.isAuthenticated, authState.isLoading, router]);
   
-  // Mostrar indicador de carga mientras se verifica autenticación
-  if (authState.isLoading) {
+  // Mostrar indicador de carga mientras se verifica autenticación o redirección
+  if (authState.isLoading || isRedirecting) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-4">
           <Spinner size="lg" />
-          <p className="text-lg text-muted-foreground">Cargando...</p>
+          <p className="text-lg text-muted-foreground">
+            {isRedirecting ? "Redirigiendo al dashboard..." : "Cargando..."}
+          </p>
         </div>
       </div>
     );
@@ -46,19 +50,14 @@ export default function HomePage() {
           </div>
           
           <Button 
-            onClick={() => router.push('/dashboard')}
+            onClick={() => {
+              setIsRedirecting(true);
+              router.push('/dashboard');
+            }}
             size="lg"
             className="min-w-[200px]"
           >
             Ir al Dashboard
-          </Button>
-          
-          <Button 
-            onClick={logout}
-            variant="outline"
-            size="sm"
-          >
-            Cerrar Sesión
           </Button>
         </div>
       ) : (
