@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { Clock, User, CalendarDays, RefreshCw, AlertCircle, Loader2, Trash2, MapPin } from "lucide-react"
+import { Clock, User, CalendarDays, RefreshCw, AlertCircle, Loader2, Trash2, MapPin, Plus } from "lucide-react"
 import { 
   Order, 
   OrderState, 
@@ -178,6 +178,13 @@ export function OrderModal({
                           <span>{product.observations}</span>
                         </div>
                       )}
+
+                      {product.adicion && (
+                        <div className="mt-2 p-2 bg-muted rounded-md text-sm flex items-start gap-2">
+                          <Plus className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                          <span>Adición: {product.adicion}</span>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -223,4 +230,4 @@ export function OrderModal({
       </DialogContent>
     </Dialog>
   )
-} 
+}

@@ -18,7 +18,8 @@ EXCLUDED_ROUTES: List[str] = [
     "/redoc",
     "/openapi.json",
     "/orders/today",
-    "/agent/chat/message"  # Añadido temporalmente para permitir pruebas sin autenticación
+    "/agent/chat/message",
+    "/orders/update_state"  # Añadido temporalmente para permitir pruebas sin autenticación
 ]
 
 # Función para verificar si una ruta está excluida de autenticación

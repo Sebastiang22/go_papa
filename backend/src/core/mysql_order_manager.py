@@ -240,16 +240,22 @@ class MySQLOrderManager:
                             return None
 
                         # Consultar todos los pedidos que compartan el mismo 'enum_order_table'
+                        # Asegurar que enum_order_table sea string
+                        enum_order_table_str = str(enum_order_table)
+                        logging.info(f"Buscando pedidos con enum_order_table: {enum_order_table_str} (tipo: {type(enum_order_table_str)})")
                         await cursor.execute(
                             "SELECT * FROM orders WHERE enum_order_table = %s ORDER BY created_at ASC", 
-                            (enum_order_table,)
+                            (enum_order_table_str,)
                         )
                         orders_in_group = await cursor.fetchall()
                         
                         if not orders_in_group:
-                            logging.warning("No se encontraron pedidos con enum_order_table: %s", enum_order_table)
+                            logging.warning("No se encontraron pedidos con enum_order_table: %s", enum_order_table_str)
                             return None
                         
+                        logging.info(f"Encontrados {len(orders_in_group)} pedidos para enum_order_table {enum_order_table_str}")
+                        for order in orders_in_group:
+                            logging.info(f"Producto encontrado: {order.get('product_name')} - {order.get('quantity')}")
                         # Construir el pedido consolidado
                         first_order = orders_in_group[0]
                         last_order = orders_in_group[-1]
@@ -389,7 +395,8 @@ class MySQLOrderManager:
                                     "name": order.get("product_name", ""),
                                     "quantity": product_quantity,
                                     "price": product_price,
-                                    "observations": order.get("details", "")
+                                    "observations": order.get("observaciones", order.get("details", "")),
+                                    "adicion": order.get("adicion", "")
                                 }
                                 consolidated_order["products"].append(product)
                                 order_total += product_total
@@ -480,7 +487,7 @@ class MySQLOrderManager:
     
     async def get_pending_orders_by_user_id(self, user_id: Optional[str]) -> Optional[Dict[str, Any]]:
         """
-        Recupera el último pedido del día actual para un usuario específico.
+        Recupera el último pedido del último enum_order_table del día actual para un usuario específico.
 
         :param user_id: ID del usuario.
         :return: El último pedido del usuario del día actual o None si no existe.
@@ -498,20 +505,22 @@ class MySQLOrderManager:
                         today = datetime.now().date()
                         today_start = datetime.combine(today, datetime.min.time())
                         
-                        # Get the latest order for the user from the current day
+                        # Get the latest order with the most recent enum_order_table
                         query = """
                             SELECT * FROM orders 
-                            WHERE user_id = %s AND created_at >= %s
-                            ORDER BY created_at DESC 
+                            WHERE user_id = %s 
+                            AND created_at >= %s
+                            ORDER BY enum_order_table DESC, created_at DESC 
                             LIMIT 1
                         """
                         await cursor.execute(query, (user_id, today_start))
                         order = await cursor.fetchone()
                         
                         if order:
-                            if 'created_at' in order:
+                            # Convert datetime objects to ISO format strings
+                            if isinstance(order.get('created_at'), datetime):
                                 order['created_at'] = order['created_at'].isoformat()
-                            if 'updated_at' in order:
+                            if isinstance(order.get('updated_at'), datetime):
                                 order['updated_at'] = order['updated_at'].isoformat()
                             return order
                         
