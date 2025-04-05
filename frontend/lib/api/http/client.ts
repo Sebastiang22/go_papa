@@ -62,7 +62,9 @@ async function fetchWithTimeout(
       
       // Si hay un error de autenticación (401), intentar cerrar sesión
       if (response.status === 401) {
-        authService.logout();
+        // No cerrar sesión automáticamente, solo registrar el error
+        console.error('Error de autenticación (401) en la solicitud:', url);
+        // Permitir que el error se propague para que la aplicación pueda manejarlo
       }
       
       throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
@@ -127,4 +129,4 @@ export const apiClient = {
       return false;
     }
   }
-}; 
+};

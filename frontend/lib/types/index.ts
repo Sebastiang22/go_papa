@@ -10,6 +10,7 @@ export interface Product {
   quantity: number;
   price: number;
   observations?: string;
+  adicion?: string;
 }
 
 /**
@@ -53,4 +54,4 @@ export enum OrderState {
  */
 export type OrderCallback = (order: Order) => void;
 export type OrderStatusCallback = (orderId: string, newStatus: string) => Promise<void>;
-export type OrderDeleteCallback = (orderId: string) => void; 
+export type OrderDeleteCallback = (orderId: string) => void;
