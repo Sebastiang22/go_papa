@@ -186,8 +186,8 @@ class MySQLOrderManager:
     
     async def get_order_status_by_address(self, address: str) -> Optional[Dict[str, Any]]:
         """
-        Recupera el pedido consolidado (formateado) del último pedido para una dirección determinada,
-        agrupando en el campo 'products' todos los productos que comparten el mismo 'enum_order_table'.
+        Recupera el pedido consolidado (formateado) del último pedido para una dirección determinada
+        del día actual, agrupando en el campo 'products' todos los productos que comparten el mismo 'enum_order_table'.
 
         Parámetros:
             address (str): Dirección de entrega del pedido.
@@ -219,15 +219,19 @@ class MySQLOrderManager:
             async with pool.acquire() as conn:
                 async with conn.cursor(aiomysql.DictCursor) as cursor:
                     try:
-                        # Obtener el último pedido para la dirección
+                        # Obtener la fecha actual (solo la parte de la fecha, sin la hora)
+                        today = datetime.now().date()
+                        today_start = datetime.combine(today, datetime.min.time())
+                        
+                        # Obtener el último pedido para la dirección del día actual
                         await cursor.execute(
-                            "SELECT * FROM orders WHERE address = %s ORDER BY created_at DESC LIMIT 1", 
-                            (address,)
+                            "SELECT * FROM orders WHERE address = %s AND created_at >= %s ORDER BY created_at DESC LIMIT 1", 
+                            (address, today_start)
                         )
                         latest_order = await cursor.fetchone()
                         
                         if not latest_order:
-                            logging.info("No se encontró ningún pedido para la dirección: %s", address)
+                            logging.info("No se encontró ningún pedido para la dirección %s en el día actual", address)
                             return None
                         
                         enum_order_table = latest_order.get("enum_order_table")
@@ -241,7 +245,6 @@ class MySQLOrderManager:
                             (enum_order_table,)
                         )
                         orders_in_group = await cursor.fetchall()
-                        print("orders_in_group: ", orders_in_group)
                         
                         if not orders_in_group:
                             logging.warning("No se encontraron pedidos con enum_order_table: %s", enum_order_table)
@@ -250,7 +253,7 @@ class MySQLOrderManager:
                         # Construir el pedido consolidado
                         first_order = orders_in_group[0]
                         last_order = orders_in_group[-1]
-                        print("first_order: ", first_order)
+                        
                         consolidated_order = {
                             "id": enum_order_table,
                             "address": first_order["address"],
@@ -477,10 +480,10 @@ class MySQLOrderManager:
     
     async def get_pending_orders_by_user_id(self, user_id: Optional[str]) -> Optional[Dict[str, Any]]:
         """
-        Recupera el último pedido de un usuario específico.
+        Recupera el último pedido del día actual para un usuario específico.
 
         :param user_id: ID del usuario.
-        :return: El último pedido del usuario o None si no existe.
+        :return: El último pedido del usuario del día actual o None si no existe.
         """
         try:
             if not user_id:
@@ -491,14 +494,18 @@ class MySQLOrderManager:
             async with pool.acquire() as conn:
                 async with conn.cursor(aiomysql.DictCursor) as cursor:
                     try:
-                        # Get the latest order for the user
+                        # Obtener la fecha actual (solo la parte de la fecha, sin la hora)
+                        today = datetime.now().date()
+                        today_start = datetime.combine(today, datetime.min.time())
+                        
+                        # Get the latest order for the user from the current day
                         query = """
                             SELECT * FROM orders 
-                            WHERE user_id = %s 
+                            WHERE user_id = %s AND created_at >= %s
                             ORDER BY created_at DESC 
                             LIMIT 1
                         """
-                        await cursor.execute(query, (user_id,))
+                        await cursor.execute(query, (user_id, today_start))
                         order = await cursor.fetchone()
                         
                         if order:

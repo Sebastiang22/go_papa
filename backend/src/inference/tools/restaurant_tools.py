@@ -177,7 +177,7 @@ async def get_order_status_tool(address: str, restaurant_id: str = "go_papa") ->
     order_manager = MySQLOrderManager()
     order_info = await order_manager.get_order_status_by_address(address)
     if order_info is None:
-        return f"No se encontró información del pedido para la dirección {address}."
+        return f"No tiene pedido pedientes."
     print(
         f"\033[92m\nget_order_status_tool activada\n"
         f"address: {address}\n"
