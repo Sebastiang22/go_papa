@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.chat_agent import chat_agent_router
 from api.orders import orders_router
 from api.inventory_router import inventory_router
+from api.auth import router as auth_router
 from core.db_pool import DBConnectionPool
 from core.auth_middleware import auth_middleware
 
@@ -38,6 +39,13 @@ async def lifespan(app: FastAPI):
     await db_pool.close()
     logging.info("Aplicación finalizada correctamente")
 
+# Creamos una aplicación sin root_path para las rutas de autenticación
+app_auth = FastAPI(title="Auth API")
+
+# Registramos el router de autenticación en la aplicación sin root_path
+app_auth.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+
+# Aplicación principal con root_path="/api"
 app = FastAPI(title="TARS Agents Graphs", lifespan=lifespan, root_path="/api")
 
 # Añadir middleware de autenticación
@@ -61,11 +69,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Registrar routers sin el prefijo /api ya que está en root_path
+# Agregar middleware CORS también a la aplicación de autenticación
+app_auth.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Registrar routers sin el prefijo /api ya que está en root_path de la aplicación principal
 app.include_router(chat_agent_router, prefix="/agent/chat", tags=["RestaurantsAgents"])
 app.include_router(inventory_router, prefix="/inventory/stock", tags=["StockRestaurants"])
 app.include_router(orders_router, prefix="/orders", tags=["Orders"])
+# También registramos el router en la aplicación principal para mantener compatibilidad
 app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+
+# Montar la aplicación de autenticación en la aplicación principal
+# Esta línea permite que las rutas de autenticación sean accesibles sin el prefijo /api/
+app.mount("/", app_auth)
 
 # Montar archivos estáticos (si es necesario)
 # app.mount("/", StaticFiles(directory="./dist", html=True), name="static")

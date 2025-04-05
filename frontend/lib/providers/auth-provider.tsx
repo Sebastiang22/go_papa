@@ -1,115 +1,193 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { User, AuthState } from "@/lib/types/auth";
-import { authService } from "@/lib/api/auth/authService";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
-// Contexto de autenticación
-const AuthContext = createContext<{
+// URL base del API, tomada de variables de entorno o valor por defecto
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+
+// Tipo de datos para el estado de autenticación
+interface AuthState {
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  user: {
+    name: string;
+    email: string;
+  } | null;
+  error: string | null;
+}
+
+// Tipo de datos para el contexto de autenticación
+interface AuthContextType {
   authState: AuthState;
   login: () => void;
   logout: () => void;
-}>({
+  verifyToken: () => Promise<boolean>;
+}
+
+// Crear el contexto con valores por defecto
+const AuthContext = createContext<AuthContextType>({
   authState: {
-    user: null,
-    token: null,
-    expiresAt: null,
     isAuthenticated: false,
     isLoading: true,
-    error: null
+    user: null,
+    error: null,
   },
   login: () => {},
   logout: () => {},
+  verifyToken: async () => false,
 });
 
-export const useAuth = () => useContext(AuthContext);
+// Hook para usar el contexto de autenticación
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth debe ser usado dentro de un AuthProvider");
+  }
+  return context;
+};
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+// Proveedor de autenticación
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+export function AuthProvider({ children }: AuthProviderProps) {
   const [authState, setAuthState] = useState<AuthState>({
-    user: null,
-    token: null,
-    expiresAt: null,
     isAuthenticated: false,
     isLoading: true,
-    error: null
+    user: null,
+    error: null,
   });
   
   const router = useRouter();
   
-  // Verificar estado de autenticación al iniciar
+  // Verificar token al cargar la página
   useEffect(() => {
-    // Verificar si hay parámetros de autenticación en la URL (redirección desde el flujo de login)
-    const authResult = authService.handleAuthCallback();
+    const tokenFromQuery = new URLSearchParams(window.location.search).get('token');
     
-    if (authResult.success && authResult.user && authResult.token) {
-      setAuthState({
-        user: authResult.user,
-        token: authResult.token,
-        expiresAt: Date.now() + (authResult.expiresIn || 3600) * 1000,
-        isAuthenticated: true,
-        isLoading: false,
-        error: null
-      });
-    } else {
-      // Si no hay parámetros en la URL, verificar si hay una sesión guardada
-      const isAuthenticated = authService.isAuthenticated();
+    // Si hay un token en la URL, guardarlo en el almacenamiento local
+    if (tokenFromQuery) {
+      // Guardar el token en localStorage para usarlo en la verificación
+      localStorage.setItem('auth_token', tokenFromQuery);
       
-      if (isAuthenticated) {
-        const user = authService.getCurrentUser();
-        const token = authService.getAuthToken();
-        
-        setAuthState({
-          user,
-          token,
-          expiresAt: null, // No necesitamos establecerlo aquí, se maneja internamente
-          isAuthenticated: true,
-          isLoading: false,
-          error: null
-        });
-      } else {
-        // No hay sesión activa
-        setAuthState(prev => ({
-          ...prev,
-          isLoading: false,
-          isAuthenticated: false
-        }));
-      }
+      // Eliminar token de la URL para evitar que se comparta accidentalmente
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+      
+      // Verificar token
+      verifyToken();
+    } else {
+      // Verificar token almacenado en cookie (esto se manejará desde el backend)
+      verifyToken();
     }
   }, []);
   
-  // Iniciar sesión
-  const login = () => {
-    setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
+  // Función para verificar la validez del token
+  const verifyToken = useCallback(async (): Promise<boolean> => {
     try {
-      authService.login();
-      // No actualizamos el estado ya que se redirigirá a Microsoft
+      setAuthState(prev => ({ ...prev, isLoading: true }));
+      
+      // Obtener token del localStorage si existe
+      const storedToken = localStorage.getItem('auth_token');
+      
+      // Configurar headers para incluir el token si existe en localStorage
+      const headers: HeadersInit = {};
+      if (storedToken) {
+        headers['Authorization'] = `Bearer ${storedToken}`;
+      }
+      
+      const response = await fetch(`${API_URL}/auth/verify-token`, {
+        method: 'GET',
+        credentials: 'include', // Importante: enviar cookies con la solicitud
+        headers
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.isValid) {
+        // Si la verificación es exitosa, podemos limpiar el token del localStorage
+        // ya que ahora debería estar en una cookie segura manejada por el backend
+        if (storedToken) {
+          localStorage.removeItem('auth_token');
+        }
+        
+        setAuthState({
+          isAuthenticated: true,
+          isLoading: false,
+          user: data.user,
+          error: null,
+        });
+        return true;
+      } else {
+        // Si hay error, limpiar el token del localStorage
+        if (storedToken) {
+          localStorage.removeItem('auth_token');
+        }
+        
+        setAuthState({
+          isAuthenticated: false,
+          isLoading: false,
+          user: null,
+          error: data.error || 'Error al verificar la autenticación',
+        });
+        return false;
+      }
     } catch (error) {
-      setAuthState(prev => ({
-        ...prev,
+      // En caso de error, también limpiar el token
+      localStorage.removeItem('auth_token');
+      
+      setAuthState({
+        isAuthenticated: false,
         isLoading: false,
-        error: 'Error al iniciar el proceso de autenticación'
-      }));
+        user: null,
+        error: 'Error de conexión al servidor de autenticación',
+      });
+      return false;
     }
-  };
+  }, []);
   
-  // Cerrar sesión
-  const logout = () => {
-    authService.logout();
+  // Función para iniciar sesión
+  const login = useCallback(() => {
+    window.location.href = `${API_URL}/auth/login`;
+  }, []);
+  
+  // Función para cerrar sesión
+  const logout = useCallback(async () => {
+    // Primero, eliminar el estado de autenticación localmente
     setAuthState({
-      user: null,
-      token: null,
-      expiresAt: null,
       isAuthenticated: false,
       isLoading: false,
-      error: null
+      user: null,
+      error: null,
     });
-    router.push('/');
+    
+    try {
+      // Intentar cerrar sesión en el backend (pero no esperar la respuesta)
+      fetch(`${API_URL}/auth/logout`, {
+        method: 'GET',
+        credentials: 'include',
+      }).catch(error => {
+        console.warn('Error al comunicarse con el servidor para cerrar sesión:', error);
+        // No afecta el flujo principal, ya cerramos sesión localmente
+      });
+      
+      // Redirigir inmediatamente sin esperar la respuesta del backend
+      router.push('/');
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+      // Incluso si hay un error, redirigir al usuario a la página de inicio
+      router.push('/');
+    }
+  }, [router]);
+  
+  // Valor del contexto
+  const value = {
+    authState,
+    login,
+    logout,
+    verifyToken,
   };
   
-  return (
-    <AuthContext.Provider value={{ authState, login, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
-} 
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}

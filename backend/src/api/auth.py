@@ -1,36 +1,67 @@
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
-import logging
+from msal import ConfidentialClientApplication
+import requests
+import json
+import os
+import jwt
+from datetime import datetime, timedelta
+
 from urllib.parse import urlencode
 
 from core.auth_service import auth_service
+import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+CLIENT_ID = os.getenv("CLIENT_ID")
+CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+TENANT_ID = os.getenv("TENANT_ID")
+REDIRECT_URI = "http://localhost:8000/auth/callback"
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
+SCOPES = ["https://graph.microsoft.com/.default"]
+JWT_SECRET = os.getenv("JWT_SECRET", "mi_secreto_super_seguro_para_jwt_tokens")
+
+client_instance = ConfidentialClientApplication(
+    client_id = CLIENT_ID,
+    client_credential = CLIENT_SECRET,
+    authority = AUTHORITY
+)
 
 @router.get("/login")
 def login(request: Request):
-    """Inicia el flujo de autenticación con Microsoft Entra ID.
+    # Crear URL de autorización con REDIRECT_URI
+    auth_params = {
+        "client_id": CLIENT_ID,
+        "response_type": "code",
+        "redirect_uri": REDIRECT_URI,
+        "scope": " ".join(SCOPES),
+        "response_mode": "query"
+    }
     
-    Redirecciona al usuario a la página de inicio de sesión de Microsoft.
+    # Añadir prompt=login si se solicita
+    prompt = request.query_params.get('prompt', None)
+    if prompt:
+        auth_params["prompt"] = "login"
     
-    Args:
-        request: Solicitud HTTP con posibles parámetros de consulta
-        
-    Returns:
-        Redirección a la página de inicio de sesión de Microsoft
-    """
-    try:
-        prompt = request.query_params.get('prompt')
-        redirect_uri = auth_service.get_auth_url(prompt)
-        logger.info("Iniciando flujo de autenticación Microsoft Entra ID")
-        return RedirectResponse(redirect_uri)
-    except Exception as e:
-        logger.error(f"Error en el inicio de sesión: {e}")
-        raise HTTPException(status_code=500, detail=f"Error de autenticación: {str(e)}")
+    # Construir URL completa
+    auth_url = f"{AUTHORITY}/oauth2/v2.0/authorize?{urlencode(auth_params)}"
+    return RedirectResponse(auth_url)
 
+def create_jwt_token(user_data):
+    """Crear un token JWT con información del usuario"""
+    expiration = datetime.utcnow() + timedelta(hours=24)
+    payload = {
+        "sub": user_data["email"],
+        "name": user_data["name"],
+        "email": user_data["email"],
+        "exp": expiration
+    }
+    token = jwt.encode(payload, JWT_SECRET, algorithm="HS256")
+    return token
 
 @router.get("/callback")
 async def auth_callback(request: Request):
@@ -50,74 +81,87 @@ async def auth_callback(request: Request):
         logger.warning("Callback sin código de autorización")
         return JSONResponse(content={"error": "Código de autorización no encontrado"}, status_code=400)
     
-    try:
-        # Obtener token usando el código de autorización
-        token_result = auth_service.acquire_token_by_code(code)
-        
-        if "access_token" not in token_result:
-            logger.error(f"Error en adquisición de token: {token_result.get('error_description', 'Error desconocido')}")
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Error al obtener token: {token_result.get('error_description', 'Error desconocido')}"
-            )
-        
-        # Obtener información del usuario
-        nombre, correo = auth_service.get_user_info(token_result["access_token"])
-        
-        # Crear parámetros para la redirección
-        query_params = urlencode({
-            "name": nombre,
-            "email": correo,
-            "token": token_result["access_token"],
-            "expires_in": token_result.get("expires_in", 3600)
-        })
-        
-        # Redireccionar al frontend con la información
-        logger.info(f"Autenticación exitosa para usuario: {correo}")
-        return RedirectResponse(url=f"{auth_service.settings.FRONTEND_URL}/?{query_params}")
+    # Adquirir token con el código recibido
+    request_token = client_instance.acquire_token_by_authorization_code(
+        code=code,
+        scopes=SCOPES,
+        redirect_uri=REDIRECT_URI
+    )
     
-    except Exception as e:
-        logger.error(f"Error en callback de autenticación: {e}")
-        raise HTTPException(status_code=500, detail=f"Error de autenticación: {str(e)}")
-
-
-@router.post("/validate-token")
-async def validate_token(request: Request):
-    """Valida un token de acceso y retorna información del usuario.
-    
-    Args:
-        request: Solicitud HTTP con el token a validar en el cuerpo
-        
-    Returns:
-        Información del usuario si el token es válido
-    """
-    try:
-        data = await request.json()
-        token = data.get("token")
-        
-        if not token:
-            return JSONResponse(
-                content={"valid": False, "error": "No se proporcionó token"}, 
-                status_code=400
+    if "access_token" in request_token:
+        try:
+            # Obtener perfil del usuario
+            nombre, correo = requestProfile(request_token["access_token"])
+            
+            # Crear token JWT
+            user_data = {"name": nombre, "email": correo}
+            token = create_jwt_token(user_data)
+            
+            # Crear URL de redirección con el token
+            redirect_url = f"{FRONTEND_URL}?token={token}"
+            
+            # Crear respuesta con cookie y redirección
+            response = RedirectResponse(url=redirect_url)
+            response.set_cookie(
+                key="auth_token", 
+                value=token,
+                httponly=True,
+                max_age=86400,  # 24 horas
+                samesite="lax",
+                secure=False  # Cambiar a True en producción con HTTPS
             )
-        
-        # Verificar el token obteniendo información del usuario
-        nombre, correo = auth_service.get_user_info(token)
-        
+            
+            return response
+        except requests.HTTPError as e:
+            raise HTTPException(status_code=400, detail=f"Failed to fetch profile information: {str(e)}")
+    else:
+        error_msg = request_token.get("error_description", "Token acquisition failed")
+        raise HTTPException(status_code=400, detail=error_msg)
+
+def requestProfile(token):
+    """Obtener datos del perfil desde Microsoft Graph API"""
+    headers = {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json'
+    }
+    response = requests.get('https://graph.microsoft.com/v1.0/me', headers=headers)
+    response.raise_for_status()
+    profile = response.json()
+    
+    nombre = profile.get('displayName', 'Usuario')
+    correo = profile.get('mail') or profile.get('userPrincipalName', 'sin-correo@example.com')
+    
+    return nombre, correo
+
+@router.get("/verify-token")
+async def verify_token(request: Request):
+    """Verificar validez del token de autenticación"""
+    token = request.cookies.get("auth_token") or request.headers.get("Authorization", "").replace("Bearer ", "")
+    
+    if not token:
+        return JSONResponse(content={"isValid": False, "error": "No token provided"}, status_code=401)
+    
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
         return JSONResponse(content={
-            "valid": True,
-            "name": nombre,
-            "email": correo
+            "isValid": True,
+            "user": {
+                "name": payload.get("name"),
+                "email": payload.get("sub")
+            }
         })
-    except Exception as e:
-        logger.warning(f"Validación de token fallida: {e}")
-        return JSONResponse(
-            content={"valid": False, "error": str(e)},
-            status_code=401
-        )
+    except jwt.ExpiredSignatureError:
+        return JSONResponse(content={"isValid": False, "error": "Token expired"}, status_code=401)
+    except jwt.InvalidTokenError:
+        return JSONResponse(content={"isValid": False, "error": "Invalid token"}, status_code=401)
 
+@router.get("/logout")
+async def logout():
+    """Cerrar sesión del usuario"""
+    response = RedirectResponse(url=f"{FRONTEND_URL}")
+    response.delete_cookie(key="auth_token")
+    return response
 
 @router.get("/test")
-async def test_auth():
-    """Endpoint de prueba para verificar que el router de autenticación está funcionando."""
-    return JSONResponse(content={"message": "Módulo de autenticación funcionando correctamente"}, status_code=200)
+async def root():
+    return JSONResponse(content={"message": "Auth service is working"}, status_code=200)

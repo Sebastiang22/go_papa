@@ -21,3 +21,30 @@ pytz
 python-docx>=0.8.11
 pandas>=2.2.0
 uvicorn
+
+## API Framework
+fastapi==0.109.0
+uvicorn==0.27.0
+httpx==0.26.0
+pydantic==2.6.0
+python-multipart==0.0.6
+python-dotenv==1.0.0
+starlette==0.35.1
+
+## OpenAI y Agent
+msal==1.26.0
+openai==1.13.3
+tiktoken==0.4.0
+
+## Database
+aiomysql==0.2.0
+PyMySQL==1.1.0
+asyncio==3.4.3
+cryptography==41.0.7
+
+## Testing 
+pytest==7.4.3
+
+## Utilities
+colorlog==6.7.0
+pyjwt==2.8.0
