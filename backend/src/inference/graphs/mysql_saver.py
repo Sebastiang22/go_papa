@@ -106,7 +106,7 @@ class MySQLSaver:
                     print(f"Error saving conversation: {err}")
                     return 0
     
-    async def get_conversation_history(self, user_id: str, max_messages: int = 20) -> List[BaseMessage]:
+    async def get_conversation_history(self, user_id: str, max_messages: int = 5) -> List[BaseMessage]:
         """Retrieve conversation history from MySQL database."""
         pool = await self.db_pool.get_pool()
         
@@ -116,33 +116,36 @@ class MySQLSaver:
                     query = """
                     SELECT * FROM conversations 
                     WHERE user_id = %s
-                    ORDER BY created_at DESC
+                    ORDER BY id DESC
                     LIMIT %s
                     """
                     
                     await cursor.execute(query, (user_id, max_messages))
+                    await conn.commit()
                     docs = await cursor.fetchall()
                     
                     history = []
                     
-                    for doc in reversed(docs):  # Orden cronológico
-                        # Create HumanMessage
+                    print("\nHistorial de conversación:")
+                    print("-" * 50)
+                    
+                    for doc in reversed(docs):
+                        # Print and create HumanMessage
+                        print(f"\033[0;37mUsuario: {doc['user_message_content']}\033[0m")  # Blanco
                         history.append(HumanMessage(
                             content=doc["user_message_content"],
-                            additional_kwargs=json.loads(doc["user_message_kwargs"]),
-                            response_metadata=json.loads(doc["user_message_metadata"]),
                             id=doc["user_message_id"]
                         ))
                         
-                        # Create AIMessage
+                        # Print and create AIMessage
+                        print(f"\033[0;32mIA: {doc['ai_message_content']}\033[0m")  # Verde
+                        print("-" * 50)
                         history.append(AIMessage(
                             content=doc["ai_message_content"],
-                            additional_kwargs=json.loads(doc["ai_message_kwargs"]),
-                            response_metadata=json.loads(doc["ai_message_metadata"]),
                             id=doc["ai_message_id"]
                         ))
-                    print(len(history))
-
+                    
+                    print(f"Total de mensajes: {len(history)}")
                     return history
                 except Error as err:
                     print(f"Error retrieving conversation history: {err}")

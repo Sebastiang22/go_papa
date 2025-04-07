@@ -364,7 +364,6 @@ class RestaurantChatAgent:
         history_messages = await self.mysql_saver.get_conversation_history(
             user_id
         )
-
         # 2. Construir lista de mensajes completa
         new_human_message = HumanMessage(
             content=user_input,

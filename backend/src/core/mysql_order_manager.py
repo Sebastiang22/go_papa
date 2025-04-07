@@ -185,40 +185,15 @@ class MySQLOrderManager:
             return None
     
     async def get_order_status_by_address(self, address: str) -> Optional[Dict[str, Any]]:
-        """
-        Recupera el pedido consolidado (formateado) del último pedido para una dirección determinada
-        del día actual, agrupando en el campo 'products' todos los productos que comparten el mismo 'enum_order_table'.
-
-        Parámetros:
-            address (str): Dirección de entrega del pedido.
-
-        Retorna:
-            Optional[Dict[str, Any]]: El pedido consolidado formateado con la siguiente estructura:
-            {
-                "id": <enum_order_table>,
-                "address": <address>,
-                "customer_name": <user_name>,
-                "enum_order_table": <enum_order_table>,
-                "products": [
-                    {
-                        "name": <product_name>,
-                        "quantity": <quantity>,
-                        "price": <price>
-                    },
-                    ...
-                ],
-                "created_at": <created_at>,
-                "updated_at": <updated_at>,
-                "state": <state>
-            }
-            o None en caso de no encontrarlo o producirse algún error.
-        """
         try:
             pool = await self.db_pool.get_pool()
             
             async with pool.acquire() as conn:
                 async with conn.cursor(aiomysql.DictCursor) as cursor:
                     try:
+                        # Forzar commit para asegurar datos actualizados
+                        await conn.commit()
+                        
                         # Obtener la fecha actual (solo la parte de la fecha, sin la hora)
                         today = datetime.now().date()
                         today_start = datetime.combine(today, datetime.min.time())
