@@ -106,7 +106,7 @@ class MySQLSaver:
                     print(f"Error saving conversation: {err}")
                     return 0
     
-    async def get_conversation_history(self, user_id: str, max_messages: int = 5) -> List[BaseMessage]:
+    async def get_conversation_history(self, user_id: str,max_messages = 10) -> List[Dict]:
         """Retrieve conversation history from MySQL database."""
         pool = await self.db_pool.get_pool()
         
@@ -138,7 +138,13 @@ class MySQLSaver:
                         ))
                         
                         # Print and create AIMessage
-                        print(f"\033[0;32mIA: {doc['ai_message_content']}\033[0m")  # Verde
+                        # Modificar la forma de imprimir los mensajes
+                        try:
+                            print(f"IA: {doc['ai_message_content']}")  # Removido el color y emoji
+                        except UnicodeEncodeError:
+                            # Si hay error de codificación, intentar limpiar caracteres especiales
+                            cleaned_message = doc['ai_message_content'].encode('ascii', 'ignore').decode('ascii')
+                            print(f"IA: {cleaned_message}")
                         print("-" * 50)
                         history.append(AIMessage(
                             content=doc["ai_message_content"],

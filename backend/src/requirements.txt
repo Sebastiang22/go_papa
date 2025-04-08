@@ -3,47 +3,39 @@
 # Manually managing azure-functions-worker may cause unexpected issues
 
 azure-functions
-langchain>=0.1.0
-langchain-core>=0.1.0
-langchain-openai>=0.0.5
+langchain==0.3.0
+langchain-core>=0.3.29,<0.4.0
+langchain-openai==0.3.0
 langgraph>=0.0.20
 nest-asyncio>=1.5.8
 IPython>=8.12.0
-aiomysql>=0.2.0
-python-dotenv>=1.0.0
-fastapi>=0.109.0
-uvicorn>=0.27.0
-pydantic>=2.5.0
-asyncio>=3.4.3
-python-multipart>=0.0.6
+aiomysql==0.2.0
+python-dotenv==1.0.0
+fastapi==0.109.0
+uvicorn==0.27.0
+pydantic>=2.7.4
+asyncio==3.4.3
+python-multipart==0.0.6
 requests>=2.31.0
 pytz
 python-docx>=0.8.11
 pandas>=2.2.0
-uvicorn
-
-## API Framework
-fastapi==0.109.0
-uvicorn==0.27.0
-httpx==0.26.0
-pydantic==2.6.0
-python-multipart==0.0.6
-python-dotenv==1.0.0
-starlette==0.35.1
 
 ## OpenAI y Agent
 msal==1.26.0
-openai==1.13.3
-tiktoken==0.4.0
+openai>=1.68.2,<2.0.0
+tiktoken>=0.7,<1.0
 
 ## Database
-aiomysql==0.2.0
 PyMySQL==1.1.0
-asyncio==3.4.3
 cryptography==41.0.7
 
 ## Testing 
 pytest==7.4.3
+
+## API Framework
+httpx==0.26.0
+starlette==0.35.1
 
 ## Utilities
 colorlog==6.7.0

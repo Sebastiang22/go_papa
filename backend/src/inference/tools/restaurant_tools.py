@@ -201,7 +201,7 @@ async def send_menu_pdf_tool(user_id: str) -> str:
     try:
         import requests
         
-        whatsapp_api_url = "http://localhost:3001/api/send-images"
+        whatsapp_api_url = "http://198.244.188.104:3001/api/send-images"
         
         # Preparar los datos para la solicitud
         payload = {
