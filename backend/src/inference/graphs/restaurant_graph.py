@@ -263,6 +263,7 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
 
                 arguments = tool_call["args"]
                 arguments["restaurant_id"] = state.get("restaurant_name") if state.get("restaurant_name") else "go_papa"
+                arguments["user_id"] = state.get("user_id")
                 tool_call["args"] = arguments
                 tool_calls_verified.append(tool_call)
 

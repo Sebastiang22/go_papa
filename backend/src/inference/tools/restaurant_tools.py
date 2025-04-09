@@ -162,12 +162,12 @@ async def confirm_order_tool(
         logging.exception("Error al confirmar el pedido: %s", e)
         return None
 
-async def get_order_status_tool(address: str, restaurant_id: str = "go_papa") -> str:
+async def get_order_status_tool(user_id: str, restaurant_id: str = "go_papa") -> str:
     """
-    Consulta el estado del pedido consolidado para una dirección determinada.
+    Consulta el estado de todos los pedidos de un usuario específico.
     
     Parámetros:
-        address (str): Dirección de entrega del pedido.
+        user_id (str): ID del usuario que realiza la consulta.
         restaurant_id (str): Identificador del restaurante. Por defecto "go_papa".
     
     Retorna:
@@ -175,12 +175,12 @@ async def get_order_status_tool(address: str, restaurant_id: str = "go_papa") ->
     """
     # Crear una única instancia de MySQLOrderManager
     order_manager = MySQLOrderManager()
-    order_info = await order_manager.get_order_status_by_address(address)
+    order_info = await order_manager.get_order_status_by_user_id(user_id)
     if order_info is None:
         return f"No tiene pedido pedientes."
     print(
         f"\033[92m\nget_order_status_tool activada\n"
-        f"address: {address}\n"
+        f"user_id: {user_id}\n"
         f"restaurant_id: {restaurant_id}\n"
         f"order_info: {json.dumps(order_info, indent=4)}\033[0m"
     )
