@@ -40,7 +40,9 @@ def generate_order_id(last_order: Optional[Dict[str, Any]], threshold_minutes: i
     Retorna:
         str: El ID de pedido generado (como cadena de caracteres) basado en el contador.
     """
-    now = datetime.now()
+    # Usar la hora de Colombia en lugar de datetime.now()
+    now_str = current_colombian_time()
+    now = datetime.strptime(now_str, '%Y-%m-%d %H:%M:%S')
     
     # Si no existe un pedido previo, se retorna el ID inicial "100000"
     if last_order is None:
@@ -89,8 +91,6 @@ def count_tokens(texts=None, model_reference="cl100k_base"):
         count = encoding.encode(texts)
         return count
     
-
-
 
 def format_conversation_data(documents):
     # Suponiendo que todos son de la misma conversación

@@ -8,7 +8,7 @@ from aiomysql import Error
 
 from core.config import settings
 from core.db_pool import DBConnectionPool
-
+from core.utils import current_colombian_time
 
 class MySQLUserManager:
     def __init__(self):
@@ -60,7 +60,7 @@ class MySQLUserManager:
             async with pool.acquire() as conn:
                 async with conn.cursor(aiomysql.DictCursor) as cursor:
                     try:
-                        now = datetime.now()
+                        now = datetime.strptime(current_colombian_time(), '%Y-%m-%d %H:%M:%S')
                         
                         if existing_user:
                             # Actualizar usuario existente
@@ -130,7 +130,7 @@ class MySQLUserManager:
                         elif auto_create:
                             logging.warning("Usuario no encontrado con id: %s, creando nuevo usuario", user_id)
                             # Si el usuario no existe y auto_create es True, lo creamos
-                            now = datetime.now()
+                            now = datetime.strptime(current_colombian_time(), '%Y-%m-%d %H:%M:%S')
                             query = """
                             INSERT INTO users (user_id, name, address, created_at, updated_at)
                             VALUES (%s, %s, %s, %s, %s)
@@ -200,11 +200,10 @@ class MySQLUserManager:
                             logging.info("No fields to update for user: %s", user_id)
                             return await self.get_user(user_id)
                         
-                        # Add updated_at timestamp
+                        # Always add updated_at
                         update_fields.append("updated_at = %s")
-                        values.append(datetime.now())
-                        
-                        # Add user_id for WHERE clause
+                        values.append(datetime.strptime(current_colombian_time(), '%Y-%m-%d %H:%M:%S'))
+                        update_log.append(f"updated_at='{current_colombian_time()}'")
                         values.append(user_id)
                         
                         # Log update attempt

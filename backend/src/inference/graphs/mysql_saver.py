@@ -7,6 +7,8 @@ from datetime import datetime
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
 from core.config import settings
 from core.db_pool import DBConnectionPool
+from core.utils import current_colombian_time
+
 
 
 class MySQLSaver:
@@ -55,7 +57,7 @@ class MySQLSaver:
             "additional_kwargs": getattr(message, "additional_kwargs", {}),
             "response_metadata": getattr(message, "response_metadata", {}),
             "id": getattr(message, "id", ""),
-            "created_at": datetime.now().isoformat()
+            "created_at": current_colombian_time()
         }
     
     async def save_conversation(self, user_message: BaseMessage, ai_message: BaseMessage, 
@@ -66,34 +68,27 @@ class MySQLSaver:
         user_msg_dict = self._message_to_dict(user_message)
         ai_msg_dict = self._message_to_dict(ai_message)
         
+        # Generate today's date as conversation_id
+        today_date = current_colombian_time().split()[0]  # Obtener solo la fecha (YYYY-MM-DD)
+        
         async with pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 try:
                     query = """
                     INSERT INTO conversations (
-                        user_id, conversation_id, conversation_name, 
-                        created_at, updated_at, user_message_content, user_message_kwargs, 
-                        user_message_metadata, user_message_id, ai_message_content, 
-                        ai_message_kwargs, ai_message_metadata, ai_message_id, rate
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        user_id, conversation_id, created_at, 
+                        user_message_content, ai_message_content, rate
+                    ) VALUES (%s, %s, %s, %s, %s, %s)
                     """
                     
-                    now = datetime.now()
+                    now = datetime.strptime(current_colombian_time(), '%Y-%m-%d %H:%M:%S')
                     
                     await cursor.execute(query, (
                         user_id,
-                        conversation_id,
-                        conversation_name,
-                        now,
+                        today_date,  # Using today's date as conversation_id
                         now,
                         user_msg_dict["content"],
-                        json.dumps(user_msg_dict["additional_kwargs"]),
-                        json.dumps(user_msg_dict["response_metadata"]),
-                        user_msg_dict["id"],
                         ai_msg_dict["content"],
-                        json.dumps(ai_msg_dict["additional_kwargs"]),
-                        json.dumps(ai_msg_dict["response_metadata"]),
-                        ai_msg_dict["id"],
                         False
                     ))
                     
@@ -107,7 +102,7 @@ class MySQLSaver:
                     return 0
     
     async def get_conversation_history(self, user_id: str) -> List[BaseMessage]:
-        """Retrieve conversation history for a user."""
+        """Retrieve conversation history for a user from the current day."""
         pool = await self.db_pool.get_pool()
         
         async with pool.acquire() as conn:
@@ -119,16 +114,22 @@ class MySQLSaver:
             
             async with conn.cursor(aiomysql.DictCursor) as cursor:
                 try:
+                    # Get today's date range
+                    today = datetime.now().date()
+                    today_start = datetime.combine(today, datetime.min.time())
+                    today_end = datetime.combine(today, datetime.max.time())
+                    
                     # Ordenar por created_at para obtener los mensajes en orden cronológico
                     # y limitar a los últimos N mensajes (ajustar según necesidad)
                     query = """
                     SELECT * FROM conversations 
                     WHERE user_id = %s 
+                    AND created_at BETWEEN %s AND %s
                     ORDER BY created_at DESC 
                     LIMIT 20
                     """
                     
-                    await cursor.execute(query, (user_id,))
+                    await cursor.execute(query, (user_id, today_start, today_end))
                     rows = await cursor.fetchall()
                     
                     # Importante: Cerrar explícitamente el cursor y hacer commit
@@ -140,16 +141,12 @@ class MySQLSaver:
                     for row in reversed(rows):  # Invertir para orden cronológico
                         # Crear mensaje del usuario
                         user_msg = HumanMessage(
-                            content=row["user_message_content"],
-                            additional_kwargs=json.loads(row["user_message_kwargs"] or "{}"),
-                            id=row["user_message_id"]
+                            content=row["user_message_content"]
                         )
                         
                         # Crear mensaje de la IA
                         ai_msg = AIMessage(
-                            content=row["ai_message_content"],
-                            additional_kwargs=json.loads(row["ai_message_kwargs"] or "{}"),
-                            id=row["ai_message_id"]
+                            content=row["ai_message_content"]
                         )
                         
                         messages.append(user_msg)

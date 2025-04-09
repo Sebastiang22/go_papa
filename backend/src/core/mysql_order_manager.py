@@ -9,7 +9,7 @@ from aiomysql import Error
 
 from core.config import settings
 from core.db_pool import DBConnectionPool
-from core import utils
+from core.utils import current_colombian_time
 import pdb
 
 class MySQLOrderManager:
@@ -65,18 +65,20 @@ class MySQLOrderManager:
         try:
             # Asignar fecha de creación si no existe
             if "created_at" not in order:
-                order["created_at"] = datetime.now().isoformat()
+                # Usar la hora de Colombia en lugar de datetime.now()
+                order["created_at"] = current_colombian_time()
             
             # Convertir fechas ISO a objetos datetime para MySQL
-            created_at = datetime.fromisoformat(order["created_at"].replace('Z', '+00:00'))
-            updated_at = datetime.now()
+            created_at = datetime.strptime(order["created_at"].replace('Z', '+00:00'), '%Y-%m-%d %H:%M:%S') if 'T' not in order["created_at"] else datetime.fromisoformat(order["created_at"].replace('Z', '+00:00'))
+            # Usar la hora de Colombia en lugar de datetime.now()
+            updated_at = datetime.strptime(current_colombian_time(), '%Y-%m-%d %H:%M:%S')
             
             pool = await self.db_pool.get_pool()
             async with pool.acquire() as conn:
                 async with conn.cursor(aiomysql.DictCursor) as cursor:
                     try:
                         # Preparar los campos y valores para la inserción
-                        fields = ["id", "enum_order_table", "product_id", "product_name", 
+                        fields = ["enum_order_table", "product_id", "product_name", 
                                 "quantity", "state", "address", "user_name", "user_id",
                                 "created_at", "updated_at"]
                         
@@ -109,8 +111,11 @@ class MySQLOrderManager:
                         await cursor.execute(query, values)
                         await conn.commit()
                         
+                        # Recuperar el ID auto-incrementado
+                        order_id = cursor.lastrowid
+                        
                         # Recuperar el pedido insertado
-                        await cursor.execute("SELECT * FROM orders WHERE id = %s", (order["id"],))
+                        await cursor.execute("SELECT * FROM orders WHERE id = %s", (order_id,))
                         created_order = await cursor.fetchone()
                         
                         logging.info("Pedido creado con id: %s", created_order.get("id"))
@@ -195,7 +200,8 @@ class MySQLOrderManager:
                         await conn.commit()
                         
                         # Obtener la fecha actual (solo la parte de la fecha, sin la hora)
-                        today = datetime.now().date()
+                        today_str = utils.current_colombian_time().split()[0]  # Obtener solo la fecha (YYYY-MM-DD)
+                        today = datetime.strptime(today_str, '%Y-%m-%d').date()
                         today_start = datetime.combine(today, datetime.min.time())
                         
                         # Obtener el último pedido para la dirección del día actual

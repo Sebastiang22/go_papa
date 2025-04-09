@@ -7,6 +7,7 @@ from aiomysql import Error
 
 from core.config import settings
 from core.db_pool import DBConnectionPool
+from core.utils import current_colombian_time
 
 
 class MySQLInventoryManager:
@@ -54,7 +55,7 @@ class MySQLInventoryManager:
             pool = await self.db_pool.get_pool()
             
             product = {
-                "id": f"p-{datetime.now().timestamp()}",
+                "id": f"p-{datetime.strptime(current_colombian_time(), '%Y-%m-%d %H:%M:%S').timestamp()}",
                 "restaurant_id": restaurant_id,
                 "name": name,
                 "quantity": quantity,
@@ -62,7 +63,7 @@ class MySQLInventoryManager:
                 "price": price,
                 "descripcion": descripcion,
                 "tipo_producto": tipo_producto,
-                "last_updated": datetime.now()
+                "last_updated": datetime.strptime(current_colombian_time(), '%Y-%m-%d %H:%M:%S')
             }
             
             async with pool.acquire() as conn:
@@ -191,7 +192,7 @@ class MySQLInventoryManager:
                         
                         # Update the product with new fields
                         product.update(updated_fields)
-                        product["last_updated"] = datetime.now()
+                        product["last_updated"] = datetime.strptime(current_colombian_time(), '%Y-%m-%d %H:%M:%S')
                         
                         # Prepare the update query
                         fields = [f"{key} = %s" for key in updated_fields.keys()]

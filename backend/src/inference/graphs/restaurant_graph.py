@@ -8,7 +8,7 @@ from langgraph.prebuilt import ToolNode
 
 from core.config import settings
 from inference.graphs.mysql_saver import MySQLSaver
-from core import utils
+from core.utils import current_colombian_time
 import pdb
 from IPython.display import Image, display
 from langchain_core.runnables.graph import CurveStyle, MermaidDrawMethod, NodeStyles
@@ -205,7 +205,7 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
         )
 
     # Inyectar la información del usuario en el prompt del sistema
-    system_prompt_with_user = SYSTEM_PROMPT.replace("{{fecha-hora}}", datetime.now().isoformat()).replace("{{user_info}}", user_info).replace("{{restaurant_name}}", state.get("restaurant_name", "go_papa"))
+    system_prompt_with_user = SYSTEM_PROMPT.replace("{{fecha-hora}}", current_colombian_time()).replace("{{user_info}}", user_info).replace("{{restaurant_name}}", state.get("restaurant_name", "go_papa"))
     system_msg = SystemMessage(content=system_prompt_with_user)
     new_messages = [system_msg] + state["messages"][-max_messages:]
 
@@ -381,8 +381,7 @@ class RestaurantChatAgent:
         # 2. Construir lista de mensajes completa
         new_human_message = HumanMessage(
             content=user_input,
-            id=utils.genereta_id(),
-            response_metadata={"timestamp": datetime.now().isoformat()}
+            response_metadata={"timestamp": current_colombian_time()}
         )
         all_messages = history_messages + [new_human_message]
         # 3. Ejecutar el flujo

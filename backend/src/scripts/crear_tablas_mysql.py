@@ -31,7 +31,8 @@ def create_tables():
             # Create inventory table
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS inventory (
-                id VARCHAR(255) PRIMARY KEY,
+                id_auto BIGINT AUTO_INCREMENT,
+                id VARCHAR(255) NOT NULL,
                 restaurant_id VARCHAR(255) NOT NULL,
                 name VARCHAR(255) NOT NULL,
                 quantity INT NOT NULL,
@@ -40,6 +41,8 @@ def create_tables():
                 descripcion TEXT,
                 tipo_producto ENUM('menu', 'adicion') DEFAULT 'menu',
                 last_updated DATETIME NOT NULL,
+                PRIMARY KEY (id_auto),
+                UNIQUE KEY (id),
                 INDEX (restaurant_id)
             )
             """)
@@ -48,7 +51,7 @@ def create_tables():
             # Create orders table
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS orders (
-                id VARCHAR(255) PRIMARY KEY,
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
                 enum_order_table VARCHAR(255) NOT NULL,
                 product_id VARCHAR(255) NOT NULL,
                 product_name VARCHAR(255) NOT NULL,
@@ -76,11 +79,14 @@ def create_tables():
             # Create users table
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
-                user_id VARCHAR(255) PRIMARY KEY,
+                id BIGINT AUTO_INCREMENT,
+                user_id VARCHAR(255) NOT NULL,
                 name VARCHAR(255),
                 address VARCHAR(255),
                 created_at DATETIME NOT NULL,
                 updated_at DATETIME NOT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY (user_id),
                 INDEX (user_id)
             )
             """)
@@ -92,17 +98,9 @@ def create_tables():
                 id BIGINT AUTO_INCREMENT PRIMARY KEY,
                 user_id VARCHAR(255) NOT NULL,
                 conversation_id VARCHAR(255) NOT NULL,
-                conversation_name VARCHAR(255) NOT NULL,
                 created_at DATETIME NOT NULL,
-                updated_at DATETIME NOT NULL,
                 user_message_content TEXT NOT NULL,
-                user_message_kwargs JSON,
-                user_message_metadata JSON,
-                user_message_id VARCHAR(255),
                 ai_message_content TEXT NOT NULL,
-                ai_message_kwargs JSON,
-                ai_message_metadata JSON,
-                ai_message_id VARCHAR(255),
                 rate BOOLEAN DEFAULT FALSE,
                 INDEX (conversation_id),
                 INDEX (user_id)
