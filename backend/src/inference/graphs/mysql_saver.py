@@ -106,49 +106,61 @@ class MySQLSaver:
                     print(f"Error saving conversation: {err}")
                     return 0
     
-    async def get_conversation_history(self, user_id: str, max_messages: int = 5) -> List[BaseMessage]:
-        """Retrieve conversation history from MySQL database."""
+    async def get_conversation_history(self, user_id: str) -> List[BaseMessage]:
+        """Retrieve conversation history for a user."""
         pool = await self.db_pool.get_pool()
         
         async with pool.acquire() as conn:
+            # Importante: Asegurarse de que la conexión no esté en modo autocommit
+            conn.autocommit(False)
+            
+            # Forzar un commit de cualquier transacción pendiente
+            await conn.commit()
+            
             async with conn.cursor(aiomysql.DictCursor) as cursor:
                 try:
+                    # Ordenar por created_at para obtener los mensajes en orden cronológico
+                    # y limitar a los últimos N mensajes (ajustar según necesidad)
                     query = """
                     SELECT * FROM conversations 
-                    WHERE user_id = %s
-                    ORDER BY id DESC
-                    LIMIT %s
+                    WHERE user_id = %s 
+                    ORDER BY created_at DESC 
+                    LIMIT 20
                     """
                     
-                    await cursor.execute(query, (user_id, max_messages))
+                    await cursor.execute(query, (user_id,))
+                    rows = await cursor.fetchall()
+                    
+                    # Importante: Cerrar explícitamente el cursor y hacer commit
+                    await cursor.close()
                     await conn.commit()
-                    docs = await cursor.fetchall()
                     
-                    history = []
-                    
-                    print("\nHistorial de conversación:")
-                    print("-" * 50)
-                    
-                    for doc in reversed(docs):
-                        # Print and create HumanMessage
-                        print(f"\033[0;37mUsuario: {doc['user_message_content']}\033[0m")  # Blanco
-                        history.append(HumanMessage(
-                            content=doc["user_message_content"],
-                            id=doc["user_message_id"]
-                        ))
+                    # Convertir los resultados en mensajes
+                    messages = []
+                    for row in reversed(rows):  # Invertir para orden cronológico
+                        # Crear mensaje del usuario
+                        user_msg = HumanMessage(
+                            content=row["user_message_content"],
+                            additional_kwargs=json.loads(row["user_message_kwargs"] or "{}"),
+                            id=row["user_message_id"]
+                        )
                         
-                        # Print and create AIMessage
-                        print(f"\033[0;32mIA: {doc['ai_message_content']}\033[0m")  # Verde
-                        print("-" * 50)
-                        history.append(AIMessage(
-                            content=doc["ai_message_content"],
-                            id=doc["ai_message_id"]
-                        ))
+                        # Crear mensaje de la IA
+                        ai_msg = AIMessage(
+                            content=row["ai_message_content"],
+                            additional_kwargs=json.loads(row["ai_message_kwargs"] or "{}"),
+                            id=row["ai_message_id"]
+                        )
+                        
+                        messages.append(user_msg)
+                        messages.append(ai_msg)
                     
-                    print(f"Total de mensajes: {len(history)}")
-                    return history
-                except Error as err:
-                    print(f"Error retrieving conversation history: {err}")
+                    return messages
+                    
+                except Exception as e:
+                    print(f"Error retrieving conversation history: {e}")
+                    # En caso de error, asegurarse de hacer rollback
+                    await conn.rollback()
                     return []
     
     async def close(self):
