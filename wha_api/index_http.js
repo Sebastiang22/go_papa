@@ -64,55 +64,77 @@ async function connectToWhatsApp() {
     sock.ev.on('creds.update', saveCreds);
 
     // Evento para recibir mensajes entrantes
+    // Agregar al inicio del archivo, después de las importaciones
+    const messageQueues = new Map();
+    const DELAY_TIME = 5000; // 5 segundos de espera
+    
+    // Modificar el evento de mensajes
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
         console.log('📨 Mensaje recibido:', type, messages.length);
     
         for (const message of messages) {
             if (!message.message) continue;
-            if (message.key.fromMe) continue; // Omitir mensajes enviados por este cliente
-
-            // Extraer el texto del mensaje (puede provenir de distintas propiedades)
+            if (message.key.fromMe) continue;
+    
+            const remoteJid = message.key.remoteJid;
             const queryText = message.message.conversation || 
-                              message.message.extendedTextMessage?.text || 
-                              message.message.imageMessage?.caption ||
-                              'Mensaje multimedia';
-
-            // Formatear el mensaje recibido
+                             message.message.extendedTextMessage?.text || 
+                             message.message.imageMessage?.caption ||
+                             'Mensaje multimedia';
+    
             const newMessage = {
-                from: message.key.remoteJid,
-                sender: message.pushName || message.key.remoteJid.split('@')[0],
+                from: remoteJid,
+                sender: message.pushName || remoteJid.split('@')[0],
                 message: queryText,
                 timestamp: (message.messageTimestamp * 1000) || Date.now(),
                 type: Object.keys(message.message)[0]
             };
-            
-            console.log('📩 Nuevo mensaje:', newMessage);
-            
-            // Almacenar el mensaje en un array global (opcional)
-            newMessages.push(newMessage);
-            
-            // Preparar el payload para la solicitud HTTP
-            const payload = {
-                user_id: message.key.remoteJid.split('@')[0],
-                conversation_id: message.key.remoteJid,
-                conversation_name: message.pushName || message.key.remoteJid.split('@')[0],
-                query: queryText,
-                restaurant_name: "go_papa"
-            };
-
-            // Realizar la solicitud POST a http://localhost:8000/api/agent/chat/message
-            try {
-                // const response = await axios.post('http://localhost:8000/api/agent/chat/message', payload);
-                const response = await axios.post('http://127.0.0.1:8000/agent/chat/message', payload);
-                console.log('✅ Respuesta de API agent/chat/message:', response.data);
-                // Asumimos que la respuesta contiene un campo 'text' con la respuesta a enviar
-                const replyText = (response.data.text || 'Estamos experimentando problemas, por favor intente más tarde').replace(/\*\*/g, '*');
-                // Enviar la respuesta de vuelta al mismo número de WhatsApp
-                await globalSocket.sendMessage(message.key.remoteJid, { text: replyText });
-                console.log(`📤 Respuesta enviada a ${message.key.remoteJid}`);
-            } catch (error) {
-                console.error('❌ Error al realizar POST a /api/agent/chat/message:', error.message);
+    
+            // Agregar mensaje a la cola del usuario
+            if (!messageQueues.has(remoteJid)) {
+                messageQueues.set(remoteJid, {
+                    messages: [],
+                    timeoutId: null
+                });
             }
+    
+            const userQueue = messageQueues.get(remoteJid);
+            userQueue.messages.push(newMessage);
+    
+            // Limpiar el timeout anterior si existe
+            if (userQueue.timeoutId) {
+                clearTimeout(userQueue.timeoutId);
+            }
+    
+            // Establecer nuevo timeout
+            userQueue.timeoutId = setTimeout(async () => {
+                try {
+                    const messages = userQueue.messages;
+                    messageQueues.delete(remoteJid); // Limpiar la cola
+    
+                    // Combinar todos los mensajes
+                    const combinedQuery = messages.map(m => m.message).join('\n');
+                    
+                    const payload = {
+                        user_id: remoteJid.split('@')[0],
+                        conversation_id: remoteJid,
+                        conversation_name: messages[0].sender,
+                        query: combinedQuery,
+                        restaurant_name: "go_papa"
+                    };
+    
+                    const response = await axios.post('http://127.0.0.1:8000/agent/chat/message', payload);
+                    console.log('✅ Respuesta de API agent/chat/message:', response.data);
+                    
+                    const replyText = (response.data.text || 'Estamos experimentando problemas, por favor intente más tarde').replace(/\*\*/g, '*');
+                    await globalSocket.sendMessage(remoteJid, { text: replyText });
+                    console.log(`📤 Respuesta enviada a ${remoteJid}`);
+                } catch (error) {
+                    console.error('❌ Error al procesar mensajes agrupados:', error.message);
+                }
+            }, DELAY_TIME);
+    
+            newMessages.push(newMessage);
         }
     });
 }

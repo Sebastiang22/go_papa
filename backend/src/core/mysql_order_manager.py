@@ -9,7 +9,7 @@ from aiomysql import Error
 
 from core.config import settings
 from core.db_pool import DBConnectionPool
-from core import utils
+from core.utils import current_colombian_time
 import pdb
 
 class MySQLOrderManager:
@@ -65,18 +65,20 @@ class MySQLOrderManager:
         try:
             # Asignar fecha de creación si no existe
             if "created_at" not in order:
-                order["created_at"] = datetime.now().isoformat()
+                # Usar la hora de Colombia en lugar de datetime.now()
+                order["created_at"] = current_colombian_time()
             
             # Convertir fechas ISO a objetos datetime para MySQL
-            created_at = datetime.fromisoformat(order["created_at"].replace('Z', '+00:00'))
-            updated_at = datetime.now()
+            created_at = datetime.strptime(order["created_at"].replace('Z', '+00:00'), '%Y-%m-%d %H:%M:%S') if 'T' not in order["created_at"] else datetime.fromisoformat(order["created_at"].replace('Z', '+00:00'))
+            # Usar la hora de Colombia en lugar de datetime.now()
+            updated_at = datetime.strptime(current_colombian_time(), '%Y-%m-%d %H:%M:%S')
             
             pool = await self.db_pool.get_pool()
             async with pool.acquire() as conn:
                 async with conn.cursor(aiomysql.DictCursor) as cursor:
                     try:
                         # Preparar los campos y valores para la inserción
-                        fields = ["id", "enum_order_table", "product_id", "product_name", 
+                        fields = ["enum_order_table", "product_id", "product_name", 
                                 "quantity", "state", "address", "user_name", "user_id",
                                 "created_at", "updated_at"]
                         
@@ -109,8 +111,11 @@ class MySQLOrderManager:
                         await cursor.execute(query, values)
                         await conn.commit()
                         
+                        # Recuperar el ID auto-incrementado
+                        order_id = cursor.lastrowid
+                        
                         # Recuperar el pedido insertado
-                        await cursor.execute("SELECT * FROM orders WHERE id = %s", (order["id"],))
+                        await cursor.execute("SELECT * FROM orders WHERE id = %s", (order_id,))
                         created_order = await cursor.fetchone()
                         
                         logging.info("Pedido creado con id: %s", created_order.get("id"))
@@ -184,7 +189,7 @@ class MySQLOrderManager:
             logging.exception("Error general al recuperar el último enum_order_table: %s", e)
             return None
     
-    async def get_order_status_by_address(self, address: str) -> Optional[Dict[str, Any]]:
+    async def get_order_status_by_user_id(self, user_id: str) -> Optional[Dict[str, Any]]:
         try:
             pool = await self.db_pool.get_pool()
             
@@ -195,23 +200,24 @@ class MySQLOrderManager:
                         await conn.commit()
                         
                         # Obtener la fecha actual (solo la parte de la fecha, sin la hora)
-                        today = datetime.now().date()
+                        today_str = current_colombian_time().split()[0]  # Obtener solo la fecha (YYYY-MM-DD)
+                        today = datetime.strptime(today_str, '%Y-%m-%d').date()
                         today_start = datetime.combine(today, datetime.min.time())
                         
-                        # Obtener el último pedido para la dirección del día actual
+                        # Obtener el último pedido para el usuario del día actual
                         await cursor.execute(
-                            "SELECT * FROM orders WHERE address = %s AND created_at >= %s ORDER BY created_at DESC LIMIT 1", 
-                            (address, today_start)
+                            "SELECT * FROM orders WHERE user_id = %s AND created_at >= %s ORDER BY created_at DESC LIMIT 1", 
+                            (user_id, today_start)
                         )
                         latest_order = await cursor.fetchone()
                         
                         if not latest_order:
-                            logging.info("No se encontró ningún pedido para la dirección %s en el día actual", address)
+                            logging.info("No se encontró ningún pedido para el usuario %s en el día actual", user_id)
                             return None
                         
                         enum_order_table = latest_order.get("enum_order_table")
                         if not enum_order_table:
-                            logging.info("El último pedido para la dirección %s no tiene 'enum_order_table'.", address)
+                            logging.info("El último pedido para el usuario %s no tiene 'enum_order_table'.", user_id)
                             return None
 
                         # Consultar todos los pedidos que compartan el mismo 'enum_order_table'
@@ -258,7 +264,7 @@ class MySQLOrderManager:
                         
                         return consolidated_order
                     except Error as err:
-                        logging.exception("Error al recuperar el estado del pedido para dirección %s: %s", address, err)
+                        logging.exception("Error al recuperar el estado del pedido para usuario %s: %s", user_id, err)
                         return None
         except Exception as e:
             logging.exception("Error general al recuperar el estado del pedido: %s", e)
@@ -459,7 +465,7 @@ class MySQLOrderManager:
             logging.exception("General error updating orders: %s", e)
             return None
     
-    
+
     async def get_pending_orders_by_user_id(self, user_id: Optional[str]) -> Optional[Dict[str, Any]]:
         """
         Recupera el último pedido del último enum_order_table del día actual para un usuario específico.
@@ -578,36 +584,6 @@ class MySQLOrderManager:
             logging.exception("Error general al recuperar todos los pedidos: %s", e)
             return {}
 
-    async def get_order_status_by_user_id(self, user_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Retorna el estado de todos los pedidos de un usuario específico.
-
-        :param user_id: ID del usuario.
-        :return: El estado de todos los pedidos del usuario.
-        """
-        try:
-            pool = await self.db_pool.get_pool()
-            
-            async with pool.acquire() as conn:
-                async with conn.cursor(aiomysql.DictCursor) as cursor:
-                    try:
-                        await cursor.execute("SELECT * FROM orders WHERE user_id = %s", (user_id,))
-                        orders = await cursor.fetchall()
-                        
-                        if orders:
-                            for order in orders:
-                                if 'created_at' in order:
-                                    order['created_at'] = order['created_at'].isoformat()
-                                if 'updated_at' in order:
-                                    order['updated_at'] = order['updated_at'].isoformat()
-                        
-                        return orders
-                    except Error as err:
-                        logging.exception("Error al recuperar estado de pedidos: %s", err)
-                        return []
-        except Exception as e:
-            logging.exception("Error general al recuperar estado de pedidos: %s", e)
-            return []
 
     async def update_order_status(self, enum_order_table: str, state: str, partition_key: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
