@@ -13,7 +13,7 @@ import pdb
 from IPython.display import Image, display
 from langchain_core.runnables.graph import CurveStyle, MermaidDrawMethod, NodeStyles
 from datetime import datetime
-from inference.tools.restaurant_tools import get_menu_tool,confirm_order_tool,get_order_status_tool,send_menu_pdf_tool, get_adiciones_tool
+from inference.tools.restaurant_tools import get_menu_tool,confirm_order_tool,get_order_status_tool,send_menu_pdf_tool, get_adiciones_tool, update_order_tool
 import json
 import asyncio
 from langchain_openai import ChatOpenAI
@@ -138,6 +138,30 @@ Eres un asistente de IA especializado en la atención a clientes para nuestro re
      - Llama a esta herramienta cuando el cliente solicite explícitamente ver el menú.  
      - Informa al cliente que ha recibido el menú y procede a tomar su pedido.
 
+6. *update_order_tool*  
+   - *Función:* Actualiza un producto específico dentro de un pedido existente.  
+   - *Uso:*  
+     - Utiliza esta herramienta cuando el cliente desee modificar un producto de su pedido actual.  
+     - **DEBES** usar esta herramienta cuando el cliente menciona adiciones, observaciones o modificaciones sin especificar un producto en la conversación actual, lo que indica que quiere modificar un pedido existente en la base de datos.
+     - **IMPORTANTE:** Si el cliente dice frases como "quiero agregar chicharrón", "ponle extra queso", o "con observación sin cebolla" sin haber mencionado un producto específico en la conversación actual, DEBES asumir que quiere modificar un pedido existente y usar esta herramienta.
+     - Solo funciona con pedidos en estado 'pendiente' o 'en preparación'.  
+   - *Datos requeridos para actualizar un producto:*  
+     - *enum_order_table:* Identificador del pedido a actualizar (obtenido de get_order_status_tool).  
+     - *product_name:* Nombre del producto a actualizar.  
+     - *user_id:* ID del cliente (ya incluido automáticamente).  
+     - *quantity:* (Opcional) Nueva cantidad del producto.  
+     - *observaciones:* (Opcional) Nuevas observaciones para el producto.  
+     - *adicion:* (Opcional) Nuevas adiciones para el producto.  
+     - *new_product_name:* (Opcional) Nuevo nombre de producto (para cambiar el producto).  
+     - *new_product_id:* (Opcional) Nuevo ID de producto (para cambiar el producto).  
+     - *price:* (Opcional) Nuevo precio.  
+   - *Procedimiento:*  
+     - Primero, verifica el estado del pedido con get_order_status_tool.  
+     - Si el cliente quiere cambiar el producto por otro diferente, usa get_menu_tool para obtener la información del nuevo producto.  
+     - Si el cliente quiere modificar adiciones, usa get_adiciones_tool para verificar disponibilidad y precios.  
+     - Confirma todos los cambios con el cliente antes de ejecutar la actualización.  
+     - Informa al cliente sobre el resultado de la actualización.
+
 ---
 
 ### Flujo de Conversación y Proceso de Pedido
@@ -218,7 +242,7 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
     # {"tool_calls": [{"name": "search_tool", "args": "..."}]}
     # In main_agent_node function
     llm_with_tools = llm_raw.bind_tools(
-    tools=[confirm_order_tool, get_menu_tool, get_order_status_tool, send_menu_pdf_tool, get_adiciones_tool]
+    tools=[confirm_order_tool, get_menu_tool, get_order_status_tool, send_menu_pdf_tool, get_adiciones_tool, update_order_tool]
         )
     # 2) Usar ainvoke en lugar de invoke para un procesamiento verdaderamente asíncrono
     response_msg = await llm_with_tools.ainvoke(new_messages)
@@ -269,16 +293,6 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
                 tool_call["args"] = arguments
                 tool_calls_verified.append(tool_call)
 
-            elif tool_call["name"] == "send_menu_pdf_tool":
-                print(f"\033[32m Tool Call: {tool_call['name']}  conversation_id {state['thread_id']}\033[0m")
-
-                arguments = tool_call["args"]
-                # Asegurarse de que user_id esté presente en los argumentos
-                if "user_id" not in arguments or not arguments["user_id"]:
-                    arguments["user_id"] = state.get("user_id")
-                tool_call["args"] = arguments
-                tool_calls_verified.append(tool_call)
-
             elif tool_call["name"] == "get_adiciones_tool":
                 print(f"\033[32m Tool Call: {tool_call['name']}  conversation_id {state['thread_id']}\033[0m")
                 
@@ -290,6 +304,18 @@ async def main_agent_node(state: RestaurantState) -> RestaurantState:
                 else:
                     # If restaurant_name is not in arguments, add it
                     arguments["restaurant_name"] = state.get("restaurant_name") if state.get("restaurant_name") else "go_papa"
+                tool_call["args"] = arguments
+                tool_calls_verified.append(tool_call)
+
+            elif tool_call["name"] == "update_order_tool":
+                print(f"\033[32m Tool Call: {tool_call['name']}  conversation_id {state['thread_id']}\033[0m")
+
+                arguments = tool_call["args"]
+                # Asegurarse de que user_id esté presente en los argumentos
+                if "user_id" not in arguments or not arguments["user_id"]:
+                    arguments["user_id"] = state.get("user_id")
+                # Asegurarse de que restaurant_id esté presente en los argumentos
+                arguments["restaurant_id"] = state.get("restaurant_name") if state.get("restaurant_name") else "go_papa"
                 tool_call["args"] = arguments
                 tool_calls_verified.append(tool_call)
 
@@ -453,6 +479,9 @@ async def parallel_tools_node(state: RestaurantState) -> RestaurantState:
             tool_call_indices.append(i)
         elif tool_name == "get_adiciones_tool":
             tasks.append(get_adiciones_tool(**tool_args))
+            tool_call_indices.append(i)
+        elif tool_name == "update_order_tool":
+            tasks.append(update_order_tool(**tool_args))
             tool_call_indices.append(i)
     
     # Ejecutar todas las herramientas en paralelo

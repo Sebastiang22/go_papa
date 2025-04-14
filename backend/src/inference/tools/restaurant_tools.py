@@ -251,3 +251,78 @@ async def get_adiciones_tool(restaurant_name: str = "go_papa") -> List[Dict[str,
         print(f"\033[91m Error en get_adiciones_tool: {str(e)}\033[0m")
         # En caso de error, devolver una lista vacía pero no None
         return []
+
+
+async def update_order_tool(
+    enum_order_table: str,
+    product_name: str,
+    user_id: Optional[str] = None,
+    quantity: Optional[int] = None,
+    observaciones: Optional[str] = None,
+    adicion: Optional[str] = None,
+    new_product_name: Optional[str] = None,
+    new_product_id: Optional[str] = None,
+    price: Optional[float] = None,
+    restaurant_id: str = "go_papa"
+) -> Optional[str]:
+    """
+    Actualiza un producto específico dentro de un pedido existente.
+    
+    Esta herramienta permite modificar productos en pedidos que estén en estado 'pendiente' o 'en preparación'.
+    Se pueden actualizar: cantidad, observaciones, adiciones o cambiar completamente un producto.
+    
+    Parámetros:
+        enum_order_table (str): Identificador del pedido a actualizar.
+        product_name (str): Nombre del producto a actualizar.
+        user_id (Optional[str]): ID del usuario que realiza la actualización.
+        quantity (Optional[int]): Nueva cantidad del producto.
+        observaciones (Optional[str]): Nuevas observaciones para el producto.
+        adicion (Optional[str]): Nuevas adiciones para el producto.
+        new_product_name (Optional[str]): Nuevo nombre de producto (para cambiar el producto).
+        new_product_id (Optional[str]): Nuevo ID de producto (para cambiar el producto).
+        price (Optional[float]): Nuevo precio (opcional).
+        restaurant_id (str): Identificador del restaurante. Por defecto "go_papa".
+    
+    Retorna:
+        Optional[str]: Mensaje de confirmación si la actualización se realiza con éxito, o None en caso de error.
+    """
+    print(f"\033[92m\nupdate_order_tool activada\nenum_order_table: {enum_order_table}\nproduct_name: {product_name}\nuser_id: {user_id}\033[0m")
+    
+    # Crear una instancia de MySQLOrderManager
+    order_manager = MySQLOrderManager()
+    
+    # Preparar el diccionario de actualizaciones
+    updates = {}
+    
+    # Agregar campos opcionales si se proporcionan
+    if quantity is not None:
+        updates["quantity"] = quantity
+    if observaciones is not None:
+        updates["details"] = observaciones
+    if adicion is not None:
+        updates["adicion"] = adicion
+    if new_product_name is not None:
+        updates["new_product_name"] = new_product_name
+    if new_product_id is not None:
+        updates["new_product_id"] = new_product_id
+    if price is not None:
+        updates["price"] = price
+    
+    # Verificar que haya al menos un campo para actualizar
+    if not updates:
+        return "No se proporcionaron campos para actualizar el pedido."
+    
+    try:
+        # Llamar al método de actualización
+        updated_order = await order_manager.update_order_product(enum_order_table, product_name, updates)
+        
+        if updated_order:
+            txt_response = f"Pedido actualizado: {updated_order}"
+            logging.info(f"Pedido actualizado: {updated_order}")
+            return txt_response
+        else:
+            return "No se pudo actualizar el pedido. Verifica que el pedido exista y esté en estado 'pendiente' o 'en preparación'."
+    
+    except Exception as e:
+        logging.exception(f"Error al actualizar el pedido: {e}")
+        return None

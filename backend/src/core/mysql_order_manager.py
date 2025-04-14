@@ -744,3 +744,167 @@ class MySQLOrderManager:
             await self.db_pool.wait_closed()
             logging.info("Pool de conexiones cerrado correctamente.")
 
+
+    async def update_order_product(self, enum_order_table: str, product_name: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Actualiza un producto específico dentro de un pedido existente.
+        
+        Esta función permite modificar productos en pedidos que estén en estado 'pendiente' o 'en preparación'.
+        Se pueden actualizar: cantidad, observaciones, adiciones o cambiar completamente el producto.
+        
+        Parámetros:
+            enum_order_table (str): Identificador del pedido a actualizar.
+            product_name (str): Nombre del producto a actualizar.
+            updates (Dict[str, Any]): Diccionario con los campos a actualizar, puede incluir:
+                - quantity (int): Nueva cantidad del producto.
+                - details (str): Nuevas observaciones para el producto.
+                - adicion (str): Nuevas adiciones para el producto.
+                - new_product_name (str): Nuevo nombre de producto (para cambiar el producto).
+                - new_product_id (str): Nuevo ID de producto (para cambiar el producto).
+                - price (float): Nuevo precio (opcional).
+        
+        Retorna:
+            Optional[Dict[str, Any]]: El pedido consolidado actualizado o None en caso de error.
+        """
+        try:
+            pool = await self.db_pool.get_pool()
+            
+            async with pool.acquire() as conn:
+                async with conn.cursor(aiomysql.DictCursor) as cursor:
+                    try:
+                        # Verificar si existen pedidos con ese enum_order_table
+                        await cursor.execute(
+                            "SELECT * FROM orders WHERE enum_order_table = %s ORDER BY created_at ASC",
+                            (enum_order_table,)
+                        )
+                        orders_in_group = await cursor.fetchall()
+                        
+                        if not orders_in_group:
+                            logging.warning("No se encontraron pedidos con enum_order_table: %s", enum_order_table)
+                            return None
+                        
+                        # Verificar el estado del pedido (solo permitir actualización en estados 'pendiente' o 'en preparación')
+                        last_order = orders_in_group[-1]
+                        current_state = last_order.get("state", "")
+                        
+                        if current_state not in ["pendiente", "en preparacion", "en preparación"]:
+                            logging.warning(
+                                "No se puede actualizar el pedido %s porque su estado actual es '%s'", 
+                                enum_order_table, current_state
+                            )
+                            return None
+                        
+                        # Buscar el producto específico a actualizar
+                        product_order = None
+                        for order in orders_in_group:
+                            if order.get("product_name") == product_name:
+                                product_order = order
+                                break
+                        
+                        if not product_order:
+                            logging.warning(
+                                "No se encontró el producto '%s' en el pedido %s", 
+                                product_name, enum_order_table
+                            )
+                            return None
+                        
+                        # Preparar los campos a actualizar
+                        update_fields = []
+                        update_values = []
+                        
+                        # Actualizar la hora de actualización usando la hora colombiana
+                        now = datetime.strptime(current_colombian_time(), '%Y-%m-%d %H:%M:%S')
+                        update_fields.append("updated_at = %s")
+                        update_values.append(now)
+                        
+                        # Actualizar cantidad si se proporciona
+                        if "quantity" in updates:
+                            update_fields.append("quantity = %s")
+                            update_values.append(updates["quantity"])
+                        
+                        # Actualizar detalles/observaciones si se proporciona
+                        if "details" in updates:
+                            update_fields.append("details = %s")
+                            update_values.append(updates["details"])
+                        
+                        # Actualizar adición si se proporciona
+                        if "adicion" in updates:
+                            update_fields.append("adicion = %s")
+                            update_values.append(updates["adicion"])
+                        
+                        # Actualizar precio si se proporciona
+                        if "price" in updates:
+                            update_fields.append("price = %s")
+                            update_values.append(updates["price"])
+                        
+                        # Cambiar el nombre del producto si se proporciona
+                        if "new_product_name" in updates:
+                            update_fields.append("product_name = %s")
+                            update_values.append(updates["new_product_name"])
+                        
+                        # Cambiar el ID del producto si se proporciona
+                        if "new_product_id" in updates:
+                            update_fields.append("product_id = %s")
+                            update_values.append(updates["new_product_id"])
+                        
+                        # Si no hay campos para actualizar, retornar error
+                        if not update_fields:
+                            logging.warning("No se proporcionaron campos para actualizar en el pedido %s", enum_order_table)
+                            return None
+                        
+                        # Construir la consulta de actualización
+                        update_query = f"UPDATE orders SET {', '.join(update_fields)} WHERE id = %s"
+                        update_values.append(product_order["id"])
+                        
+                        # Ejecutar la actualización
+                        await cursor.execute(update_query, update_values)
+                        await conn.commit()
+                        
+                        # Verificar si la actualización fue exitosa
+                        if cursor.rowcount == 0:
+                            logging.warning("No se pudo actualizar el producto %s en el pedido %s", product_name, enum_order_table)
+                            return None
+                        
+                        # Obtener todos los pedidos actualizados
+                        await cursor.execute(
+                            "SELECT * FROM orders WHERE enum_order_table = %s ORDER BY created_at ASC",
+                            (enum_order_table,)
+                        )
+                        updated_orders = await cursor.fetchall()
+                        
+                        # Construir el pedido consolidado actualizado
+                        first_order = updated_orders[0]
+                        last_order = updated_orders[-1]
+                        
+                        consolidated_order = {
+                            "id": enum_order_table,
+                            "table_id": first_order.get("address", ""),
+                            "customer_name": first_order.get("user_name", ""),
+                            "products": [],
+                            "created_at": first_order["created_at"].isoformat() if isinstance(first_order["created_at"], datetime) else first_order["created_at"],
+                            "updated_at": now.isoformat(),
+                            "state": last_order.get("state", "pendiente")
+                        }
+                        
+                        # Agregar productos al pedido consolidado
+                        for order in updated_orders:
+                            product = {
+                                "name": order.get("product_name", ""),
+                                "quantity": order.get("quantity", 0),
+                                "price": order.get("price", 0.0),
+                                "observations": order.get("details", ""),
+                                "adicion": order.get("adicion", "")
+                            }
+                            consolidated_order["products"].append(product)
+                        
+                        logging.info("Producto %s actualizado en el pedido %s", product_name, enum_order_table)
+                        return consolidated_order
+                        
+                    except Error as err:
+                        await conn.rollback()
+                        logging.exception("Error al actualizar el producto %s en el pedido %s: %s", product_name, enum_order_table, err)
+                        return None
+        except Exception as e:
+            logging.exception("Error general al actualizar el producto: %s", e)
+            return None
+
