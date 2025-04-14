@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
+// Nueva URL base para el backend
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://af-gopapa.azurewebsites.net';
+
 export async function GET(request: NextRequest) {
   // Add CORS headers
   const headers = {
@@ -10,29 +13,17 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Aquí normalmente harías tu llamada a la base de datos o servicio
-    const mockData = {
-      stats: {
-        total_orders: 6,
-        pending_orders: 6,
-        complete_orders: 6,
+    // Redirigir la solicitud al nuevo backend
+    const response = await fetch(`${API_URL}/orders/today`, {
+      headers: {
+        "Content-Type": "application/json",
       },
-      orders: [
-        {
-          table_id: "2",
-          product_name: "hamburguesa",
-          cantidad: 1,
-          created_at: "2025-02-14T20:07:50.398659",
-          updated_at: "2025-02-14T20:07:50.398659",
-          state: "pendiente",
-          id: "2025-02-14T20:07:50.398659-2",
-        },
-      ],
-    }
-
-    return NextResponse.json(mockData, { headers })
+    });
+    
+    const data = await response.json();
+    return NextResponse.json(data, { headers })
   } catch (error) {
-    console.error("Error fetching orders:", error)
+    console.error("Error al obtener órdenes:", error)
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500, headers })
   }
 }

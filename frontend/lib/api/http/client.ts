@@ -4,7 +4,7 @@
 import { authService } from '../auth/authService';
 
 // URL base del API, tomada de variables de entorno o valor por defecto
-const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://af-gopapa.azurewebsites.net';
 
 // Tipos de error de la API
 interface ApiError {

@@ -19,8 +19,10 @@ router = APIRouter()
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 TENANT_ID = os.getenv("TENANT_ID")
-REDIRECT_URI = "http://localhost:8000/auth/callback"
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+# Actualizar REDIRECT_URI para usar el backend desplegado
+REDIRECT_URI = os.getenv("REDIRECT_URI", "https://af-gopapa.azurewebsites.net/auth/callback")
+# Actualizar FRONTEND_URL para usar el frontend desplegado
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://yellow-plant-06f40fa0f.6.azurestaticapps.net")
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 SCOPES = ["https://graph.microsoft.com/.default"]
 JWT_SECRET = os.getenv("JWT_SECRET", "mi_secreto_super_seguro_para_jwt_tokens")
@@ -108,7 +110,7 @@ async def auth_callback(request: Request):
                 httponly=True,
                 max_age=86400,  # 24 horas
                 samesite="lax",
-                secure=False  # Cambiar a True en producción con HTTPS
+                secure=True  # Cambiado a True para HTTPS en producción
             )
             
             return response

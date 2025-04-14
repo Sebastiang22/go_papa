@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 import { useRouter } from "next/navigation";
 
 // URL base del API, tomada de variables de entorno o valor por defecto
-const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://af-gopapa.azurewebsites.net';
 
 // Tipo de datos para el estado de autenticación
 interface AuthState {
