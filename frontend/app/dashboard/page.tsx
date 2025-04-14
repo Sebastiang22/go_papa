@@ -9,6 +9,7 @@ export const metadata: Metadata = {
 /**
  * Página principal del dashboard
  * Usamos un componente del lado del servidor que luego carga el dashboard del cliente
+ * prueba
  */
 export default function DashboardPage() {
   return (
